@@ -3,13 +3,13 @@ from auxs import *
 from block import *
 import os
 import networkx as nx
-<<<<<<< HEAD
-=======
+# <<<<<<< HEAD
+# =======
 from networkx.drawing.nx_agraph import to_agraph
 import seaborn as sns
 import pandas as pd
 from pyemd import emd
->>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
+# >>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
 import pdb
 
 # block
@@ -319,25 +319,25 @@ def proto_blocks_fx():
         # 3.3) pb transitions
         pb_txs = get_minsyms_counts(sms_ids,sms_cases,min_cases)
         save_as([min_pbs,pb_txs],fname)
-<<<<<<< HEAD
-        # 4) Cause repertoire
-        pb_crep = pb_txs[:,1]/np.sum(pb_txs[:,1])
-        pb_names = ['pb{}'.format(i) for i in range(pb_txs.shape[0])]
-        # fig,ax = plt.subplots()
-        sns.set(style='darkgrid')
-        plt.bar(pb_names,pb_crep,alpha=0.5)
-        plt.plot(pb_crep)
-        plt.show()
-=======
-    # 4) Cause repertoire
-    pb_crep = pb_txs[:,1]/np.sum(pb_txs[:,1])
-    pb_names = ['pb{}'.format(i) for i in range(pb_txs.shape[0])]
-    sns.set(style='darkgrid')
-    plt.bar(pb_names,pb_crep,alpha=0.5)
-    plt.plot(pb_crep)
-    plt.show()
->>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
-    return min_pbs,pb_txs
+# <<<<<<< HEAD
+#         # 4) Cause repertoire
+#         pb_crep = pb_txs[:,1]/np.sum(pb_txs[:,1])
+#         pb_names = ['pb{}'.format(i) for i in range(pb_txs.shape[0])]
+#         # fig,ax = plt.subplots()
+#         sns.set(style='darkgrid')
+#         plt.bar(pb_names,pb_crep,alpha=0.5)
+#         plt.plot(pb_crep)
+#         plt.show()
+# =======
+#     # 4) Cause repertoire
+#     pb_crep = pb_txs[:,1]/np.sum(pb_txs[:,1])
+#     pb_names = ['pb{}'.format(i) for i in range(pb_txs.shape[0])]
+#     sns.set(style='darkgrid')
+#     plt.bar(pb_names,pb_crep,alpha=0.5)
+#     plt.plot(pb_crep)
+#     plt.show()
+# >>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
+#     return min_pbs,pb_txs
 # 
 # 2: final sequence of methods for fwd-protoblocks
 # 
