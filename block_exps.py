@@ -1,5 +1,5 @@
 
-from auxs import *
+from x_auxs import *
 from block import *
 import os
 import networkx as nx

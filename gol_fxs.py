@@ -1,4 +1,5 @@
 from gol_auxs import *
+from collections import defaultdict as ddd
 
 '''
 Domain functions:
@@ -179,6 +180,34 @@ def check_adjacency(dxs,sx=[],print_data=True,ids=False):
         return dxs,dxs_ids
     return dxs
 
+def rm_env_cells_dv12(dxs,px,ids=False,print_data=True):
+    dxr = mk_dxs_tensor(dxs,px)
+    for di,dx in enumerate(dxr):
+        dxs[di] = rm_isol(dx).flatten()
+    dxr = mk_dxs_tensor(dxs,px)
+    # for large symsets
+    all_ids = np.zeros(dxs.shape[0]).astype(int)
+    bx = expand_domain(np.array([[1,1]]))
+    vxs = [bx,bx.T]
+    for vx in vxs:
+        for wi in range(px.shape[0]-vx.shape[0]+1):
+            for wj in range(px.shape[1]-vx.shape[1]+1):
+                wx_ids = np.zeros(dxs.shape[0]).astype(int)
+                wx = np.zeros((px.shape))
+                wx[wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = vx
+                wx_ids[sum_is(dxs*wx.flatten(),2)] = 1
+                wx_ids[sum_nonzero(dxs*mk_moore_nb(wx).flatten())] = 0
+                if np.sum(wx_ids) > 0:
+                    dxr[wx_ids.nonzero()[0],wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = 0
+                    all_ids += wx_ids
+    dxr = dxr.reshape(dxr.shape[0],px.flatten().shape[0])
+    ft_ids = sum_higher(dxr,2)
+    if print_data:
+        print_ac_cases(dxr[ft_ids],title='after rm env cells dv12:')
+    if ids:
+        return dxr[ft_ids],ft_ids
+    return dxr[ft_ids]
+
 def rm_composed_dv2(dxs,sx,ids=False,print_data=True):
     bp1 = np.zeros((sx.shape))
     bp2 = np.zeros((sx.shape))
@@ -207,7 +236,7 @@ Classification fxs:
 '''
 
 # final version, faster and more precise
-def mk_symsets_large_dxs(dxs,sx=[],print_data=True):
+def mk_symsets_large_dxs(dxs,sx=[],membrane=False,ids=False,print_data=True):
     if len(dxs.shape)==2:
         dxs = mk_dxs_tensor(dxs,sx)
     dxs = sort_by_sum(dxs)
@@ -215,11 +244,15 @@ def mk_symsets_large_dxs(dxs,sx=[],print_data=True):
     # canon/type, if instance, number of instances
     symset_cases = np.ones((dxs.shape[0],2)).astype(int)*-1
     reps = np.zeros(dxs.shape[0])
+    if ids:
+        symset_ids = {}
     for di in tqdm(range(dxs.shape[0])):
         if reps[di] == 0:
-            dx_ids = is_sx_in_dxs(dxs[di],dxs)
+            dx_ids = is_sx_in_dxs(dxs[di],dxs,sx,membrane=membrane)
             symset_cases[di] = [di,dx_ids.shape[0]]
             reps[dx_ids] = 1
+            if ids:
+                symset_ids[di] = dx_ids
     sms_ids = np.where(symset_cases[:,1]>0)[0]
     dxs = dxs[sms_ids]
     symset_cases = symset_cases[sms_ids]
@@ -227,6 +260,8 @@ def mk_symsets_large_dxs(dxs,sx=[],print_data=True):
         print_ac_cases(dxs,title='symsets:')
     dxs = sort_by_sum(dxs)
     dxs = center_tensor_sxs(dxs)
+    if ids:
+        return dxs,symset_cases,symset_ids
     return dxs,symset_cases
 
 # also final version, using faster algorithm

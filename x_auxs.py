@@ -146,48 +146,48 @@ import pdb
 #         x1 = expand_domain(x1,cols=(c0,cn))
 #     return x1,x2
 
-# make canonical gol patterns (sx,e=0) from word inputs
-# minimal form: active cells + moore neighborhood rectangled
-def mk_gol_pattern(px):
-    if px == 'block':
-        dx = np.zeros((4,4))
-        dx[1:-1,1:-1] = 1
-        return dx
-    elif px == 'pb0':
-        dx = np.ones((2,2))
-        dx[0,1] = 0
-        dx = np.pad(dx,(1,1))
-        return dx
-    elif px == 'pb2':
-        dx = np.zeros((2,4))
-        dx[1,:2] = 1
-        dx[0,2:] = 1
-        dx = np.pad(dx,(1,1))
-        return dx
-    elif px == 'blinker':
-        d1 = np.zeros((5,3))
-        d1[1:-1,1] = 1
-        d2 = np.ascontiguousarray(d1)
-        dx = [d1,d2]
-        return dx
-    elif px == 'glider':
-        dx = []
-        d1 = np.zeros((5,5))
-        d1[1,2] = 1
-        d1[2,3] = 1
-        d1[3,1:-1] = 1
-        d2 = np.zeros((5,5))
-        d2[1,1] = 1
-        d2[2:-1,2] = 1
-        d2[1:3,3] = 1
-        for di in [d1,d2]:
-            for ri in range(4):
-                dr = np.rot90(di,ri)
-                dt = np.ascontiguousarray(dr.T)
-                dx.extend([dr,dt])
-        return dx
-    else:
-        print('\npattern not defined\n')
+# # make canonical gol patterns (sx,e=0) from word inputs
+# # minimal form: active cells + moore neighborhood rectangled
+# def mk_gol_pattern(px):
+#     if px == 'block':
+#         dx = np.zeros((4,4))
+#         dx[1:-1,1:-1] = 1
+#         return dx
+#     elif px == 'pb0':
+#         dx = np.ones((2,2))
+#         dx[0,1] = 0
+#         dx = np.pad(dx,(1,1))
+#         return dx
+#     elif px == 'pb2':
+#         dx = np.zeros((2,4))
+#         dx[1,:2] = 1
+#         dx[0,2:] = 1
+#         dx = np.pad(dx,(1,1))
+#         return dx
+#     elif px == 'blinker':
+#         d1 = np.zeros((5,3))
+#         d1[1:-1,1] = 1
+#         d2 = np.ascontiguousarray(d1)
+#         dx = [d1,d2]
+#         return dx
+#     elif px == 'glider':
+#         dx = []
+#         d1 = np.zeros((5,5))
+#         d1[1,2] = 1
+#         d1[2,3] = 1
+#         d1[3,1:-1] = 1
+#         d2 = np.zeros((5,5))
+#         d2[1,1] = 1
+#         d2[2:-1,2] = 1
+#         d2[1:3,3] = 1
+#         for di in [d1,d2]:
+#             for ri in range(4):
+#                 dr = np.rot90(di,ri)
+#                 dt = np.ascontiguousarray(dr.T)
+#                 dx.extend([dr,dt])
+#         return dx
+#     else:
+#         print('\npattern not defined\n')
 
 # pass set of arrays into tensor of gol domains for visualization
 # dxs: matrix with arrays of gol sts
@@ -616,34 +616,30 @@ def are_the_same_sx(sx1,sx2):
 #         return expand_domain(sx)
 #     return sx
 
-# >>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
 # more general fx, for gol patterns
 # domain environmental (sx + env) tensor
 # given a block, blinker or any other structure from the gol (sx)
 # make all the env arrays for sx
 # e_cells are all the cells in the environment
-# def mk_sx_domains(sx,membrane=False):
-#     # just not to call it apart
-#     if membrane:
-#         return mk_sx_membrane_domains(sx)
-#     # for unnamed patterns/domains
-#     if type(sx) == np.ndarray:
-# <<<<<<< HEAD
-#         sx = expand_domain(rm_zero_layers(sx)) # centering
-#         if sx.shape[0] + 2 == sx.shape[1]:
-#             sx = np.pad(sx,((1,1),(0,0)))
-# =======
-#         # centering and check squared domain 
-#         sx = mk_min_sqrd_domain(sx,moore_nb=True)
-# >>>>>>> d58e35827ffd0d185ecddcfba990b8ebfe162d12
-#         sx_env = mk_moore_nb(sx)
-#         binary_dxs = mk_binary_domains(np.sum(sx_env).astype(int))
-#         non_env_ids = np.where(sx_env.flatten()==0)[0]
-#         non_env_ids -= np.arange(non_env_ids.shape[0])
-#         binary_dxs = np.insert(binary_dxs,non_env_ids,1,axis=1)
-#         non_ids = np.where((sx+sx_env).flatten()==0)
-#         binary_dxs[:,non_ids] = 0
-#         return binary_dxs
+def mk_sx_domains(sx,membrane=False):
+    # just not to call it apart
+    if membrane:
+        return mk_sx_membrane_domains(sx)
+    # for unnamed patterns/domains
+    if type(sx) == np.ndarray:
+        sx = expand_domain(rm_zero_layers(sx)) # centering
+        if sx.shape[0] + 2 == sx.shape[1]:
+            sx = np.pad(sx,((1,1),(0,0)))
+        # centering and check squared domain 
+        sx = mk_min_sqrd_domain(sx,moore_nb=True)
+        sx_env = mk_moore_nb(sx)
+        binary_dxs = mk_binary_domains(np.sum(sx_env).astype(int))
+        non_env_ids = np.where(sx_env.flatten()==0)[0]
+        non_env_ids -= np.arange(non_env_ids.shape[0])
+        binary_dxs = np.insert(binary_dxs,non_env_ids,1,axis=1)
+        non_ids = np.where((sx+sx_env).flatten()==0)
+        binary_dxs[:,non_ids] = 0
+        return binary_dxs
     # number of env cells
     # pblock1: 3 active cells in the same region of the block
     if sx == 'block' or sx == 'pb0':

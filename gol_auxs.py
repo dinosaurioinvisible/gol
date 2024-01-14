@@ -5,8 +5,10 @@ import os
 import pdb
 
 '''
+mk_gol_pattern
 gol_step/ multi_gol_step
 mk_binary_domains
+mk_env_binary_domains
 int2array / array2int
 sum_is/ sum_in_range/ sum_higher/ sum_lower/ sum_nonzero
 sort_by_sum
@@ -15,6 +17,7 @@ mk_moore_nb
 expand_domain/ expand_multiple_domains
 mk_min_sqrd_domain
 mk_min_sx_variants/ mk_sx_variants
+check_act_ct
 print_ac_cases
 rm_isol/ rm_zero_layers
 adjust_domains
@@ -40,6 +43,49 @@ match_dxs_sms_ids
 check_basic_patterns
 # end old fxs
 '''
+
+# make canonical gol patterns (sx,e=0) from word inputs
+# minimal form: active cells + moore neighborhood rectangled
+def mk_gol_pattern(px):
+    if px == 'block':
+        dx = np.zeros((4,4))
+        dx[1:-1,1:-1] = 1
+        return dx
+    elif px == 'pb0':
+        dx = np.ones((2,2))
+        dx[0,1] = 0
+        dx = np.pad(dx,(1,1))
+        return dx
+    elif px == 'pb2':
+        dx = np.zeros((2,4))
+        dx[1,:2] = 1
+        dx[0,2:] = 1
+        dx = np.pad(dx,(1,1))
+        return dx
+    elif px == 'blinker':
+        d1 = np.zeros((5,3))
+        d1[1:-1,1] = 1
+        d2 = np.ascontiguousarray(d1.T)
+        dx = [d1,d2]
+        return dx
+    elif px == 'glider':
+        dx = []
+        d1 = np.zeros((5,5))
+        d1[1,2] = 1
+        d1[2,3] = 1
+        d1[3,1:-1] = 1
+        d2 = np.zeros((5,5))
+        d2[1,1] = 1
+        d2[2:-1,2] = 1
+        d2[1:3,3] = 1
+        for di in [d1,d2]:
+            for ri in range(4):
+                dr = np.rot90(di,ri)
+                dt = np.ascontiguousarray(dr.T)
+                dx.extend([dr,dt])
+        return dx
+    else:
+        print('\npattern not defined\n')
 
 # game of life transition
 # expanded adds an external layer
@@ -74,6 +120,16 @@ def multi_gol_step(sx_domains,sx,mk_zero=True,expanded=False):
         # remove decaying domains (<3)
         sxys[sum_lower(sxys,3)] = 0
     return sxys
+# same, for very large sets
+def vl_multi_gol_step(sx_domains,sx,rm_zeros=True):
+    sxys = np.zeros((sx_domains.shape))
+    for di in tqdm(range(sx_domains.shape[0])):
+        dx = sx_domains[di].reshape(sx.shape)
+        sxys[di] = gol_step(dx).flatten()
+    if rm_zeros:
+        nz_ids = sum_higher(sxys,2)
+        return sx_domains[nz_ids],sxys[nz_ids]
+    return sxys
 
 # a tensor for all binary combinations
 # n_cells are all the env cells in domain
@@ -86,6 +142,24 @@ def mk_binary_domains(n_cells):
         n = int(2**n_cells/(2**(i+1)))
         doms[:,-1-i] = np.tile(xi,n)
     return doms
+# more general fx, for gol patterns
+# domain environmental (sx + env) tensor
+# given a block, blinker or any other structure from the gol (sx)
+# make all the env arrays for sx
+# e_cells are all the cells in the environment
+def mk_env_binary_domains(sx,membrane=False):
+    sx_dx = expand_domain(rm_zero_layers(sx))
+    if membrane:
+        sx = expand_domain(sx)
+        sx_dx = expand_domain(np.ones(sx_dx.shape))
+    sx_env = mk_moore_nb(sx_dx)
+    binary_dxs = mk_binary_domains(np.sum(sx_env).astype(int))
+    non_env_ids = np.where(sx_env.flatten()==0)[0]
+    non_env_ids -= np.arange(non_env_ids.shape[0])
+    binary_dxs = np.insert(binary_dxs,non_env_ids,1,axis=1)        
+    non_ids = np.where((sx+sx_env).flatten()==0)
+    binary_dxs[:,non_ids] = 0
+    return binary_dxs
 
 # int > binary array
 def int2array(ni,arr_len,mn=1):
@@ -259,6 +333,15 @@ def mk_sx_variants(sx,mk_non_env=True):
             sxs.append(vxi)
     return sxs
 
+# check activation continuity between transitions
+def check_act_ct(dxs,sx,ids=True):
+    if len(dxs.shape[1:]) < len(sx.shape):
+        sx = sx.flatten()
+    nz_ids = sum_nonzero(dxs*sx)
+    if ids:
+        return dxs[nz_ids],nz_ids
+    return dxs[nz_ids]
+
 def print_ac_cases(doms,rl=0,rh=0,nonzero=True,title=''):
     dxs = doms*1
     # for tensors
@@ -336,7 +419,7 @@ def mk_dxs_tensor(dxs,sx):
     for di,dx in enumerate(dxs):
         tgol[di] = dx.reshape(sxi,sxj)
     return tgol
-
+# center active cells in domain
 def center_sx_in_dx(sx):
     if np.array_equal(sx,rm_zero_layers(sx)):
         return sx
@@ -385,7 +468,10 @@ def is_sx_in_dx(sx,dx,mk_variants=False):
     if type(sx)==list and np.sum(sx[0]) > np.sum(dx):
         return False
     # make variants if needed
-    vxs = mk_sx_variants(sx) if mk_variants==True else sx
+    if mk_variants:
+        vxs = mk_sx_variants(sx) 
+    else:
+        vxs = sx if type(sx)==list else [sx]
     # match using sliding window
     for vx in vxs:
         for wi in range(dx.shape[0]-vx.shape[0]+1):
@@ -396,25 +482,29 @@ def is_sx_in_dx(sx,dx,mk_variants=False):
     return False
 # same but for the whole array of domains simultaneously
 # dxs: matrix of domain-arrays, sx in matrix form
-# sx has to have the dimensions for reshaping dxs
+# px has to have the dimensions for reshaping dxs
 # moore nb = True: symsets, if False: minsets
-def is_sx_in_dxs(sx,dxs,moore_nb=True,tensor=False,print_data=False):
-    if moore_nb and sx.flatten().shape[0] < 36:
-        dxs = np.pad(dxs.reshape(dxs.shape[0],sx.shape[0],sx.shape[1]),((0,0),(1,1),(1,1)))
-        sx = expand_domain(sx)
+def is_sx_in_dxs(sx,dxs,px,membrane=False,moore_nb=True,tensor=False,print_data=False):
+    if moore_nb and px.flatten().shape[0] < 37:
+        dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
+        px = expand_domain(px)
     if len(dxs.shape)==3:
-        dxs = dxs.reshape(dxs.shape[0],sx.flatten().shape[0])
+        dxs = dxs.reshape(dxs.shape[0],px.flatten().shape[0])
     nz_ids = np.zeros(dxs.shape[0]).astype(int)
-    vxs = mk_min_sx_variants(sx,moore_nb=moore_nb)
+    if membrane:
+        sx = expand_domain(rm_zero_layers(sx))
+        vxs = mk_sx_variants(sx,mk_non_env=False)
+    else:
+        vxs = mk_min_sx_variants(sx,moore_nb=moore_nb)
     for vx in vxs:
         vx_nz_ids = np.zeros(dxs.shape[0]).astype(int)
-        for wi in range(sx.shape[0]-vx.shape[0]+1):
-            for wj in range(sx.shape[1]-vx.shape[1]+1):
-                wx = np.zeros((sx.shape))
+        for wi in range(px.shape[0]-vx.shape[0]+1):
+            for wj in range(px.shape[1]-vx.shape[1]+1):
+                wx = np.zeros((px.shape))
                 wx[wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = vx
                 # vx is there, env is unknown
                 vx_nz_ids[sum_is(dxs*wx.flatten(),np.sum(vx))] = 1
-                # remove if env is non zero
+                # remove if env/memb is non zero
                 if moore_nb:
                     vx_nz_ids[sum_nonzero(dxs*mk_moore_nb(wx).flatten())] = 0
                 nz_ids += vx_nz_ids

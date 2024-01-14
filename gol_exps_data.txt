@@ -1,0 +1,35 @@
+
+blinker
+blinker env domains = 2^20 = 1,048,576
+blinker sxys:
+acs: 3, cases: 7533
+acs: 4, cases: 27626
+acs: 5, cases: 63558
+acs: 6, cases: 105918
+acs: 7, cases: 142296
+acs: 8, cases: 159646
+acs: 9, cases: 155557
+acs: 10, cases: 132776
+acs: 11, cases: 101283
+acs: 12, cases: 68546
+acs: 13, cases: 41478
+acs: 14, cases: 22710
+acs: 15, cases: 11028
+acs: 16, cases: 4894
+acs: 17, cases: 1855
+acs: 18, cases: 648
+acs: 19, cases: 212
+acs: 20, cases: 32
+acs: 21, cases: 16
+total: 1,047,612
+
+after activation ct check: 
+1,047,612 (same)
+
+symsets:
+100%|██████████████████████████████████████████████| 45985/45985 [02:35<00:00, 295.77it/s]
+acs: 3, cases: 2
+acs: 4, cases: 29
+acs: 5, cases: 154
+total: 185
+
