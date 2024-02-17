@@ -12,6 +12,9 @@ Filter functions:
 3) apply_ct (transitional CT)
 4) check_adjacency (structural CT)
 5) rm_composed_dv2 (structural CT+)
+6) rm_env_cells_dv1
+7) rm_env_cells_dv2
+8) rm_non_sx_cells
 Classification fxs:
 1) mk_symsets_large_dxs
 2) mk_mynsets_large_dxs
@@ -83,6 +86,8 @@ Filter functions:
 3) transitional CT
 4) structural CT
 5) structural CT+
+6) rm_env_cells_dv12, dv1 and dv2
+7) rm_non_sx_cells
 '''
 
 # remove decaying activations within domain (not environment of sx)
@@ -180,34 +185,6 @@ def check_adjacency(dxs,sx=[],print_data=True,ids=False):
         return dxs,dxs_ids
     return dxs
 
-def rm_env_cells_dv12(dxs,px,ids=False,print_data=True):
-    dxr = mk_dxs_tensor(dxs,px)
-    for di,dx in enumerate(dxr):
-        dxs[di] = rm_isol(dx).flatten()
-    dxr = mk_dxs_tensor(dxs,px)
-    # for large symsets
-    all_ids = np.zeros(dxs.shape[0]).astype(int)
-    bx = expand_domain(np.array([[1,1]]))
-    vxs = [bx,bx.T]
-    for vx in vxs:
-        for wi in range(px.shape[0]-vx.shape[0]+1):
-            for wj in range(px.shape[1]-vx.shape[1]+1):
-                wx_ids = np.zeros(dxs.shape[0]).astype(int)
-                wx = np.zeros((px.shape))
-                wx[wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = vx
-                wx_ids[sum_is(dxs*wx.flatten(),2)] = 1
-                wx_ids[sum_nonzero(dxs*mk_moore_nb(wx).flatten())] = 0
-                if np.sum(wx_ids) > 0:
-                    dxr[wx_ids.nonzero()[0],wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = 0
-                    all_ids += wx_ids
-    dxr = dxr.reshape(dxr.shape[0],px.flatten().shape[0])
-    ft_ids = sum_higher(dxr,2)
-    if print_data:
-        print_ac_cases(dxr[ft_ids],title='after rm env cells dv12:')
-    if ids:
-        return dxr[ft_ids],ft_ids
-    return dxr[ft_ids]
-
 def rm_composed_dv2(dxs,sx,ids=False,print_data=True):
     bp1 = np.zeros((sx.shape))
     bp2 = np.zeros((sx.shape))
@@ -228,6 +205,87 @@ def rm_composed_dv2(dxs,sx,ids=False,print_data=True):
         return dxs,bp_ids
     return dxs
 
+def rm_env_cells_dv1(dxs,px,ids=False,print_data=True):
+    # rm_ids = np.ones(dxs.shape[0])
+    for di in tqdm(range(dxs.shape[0])):
+        dx = dxs[di].reshape(px.shape)
+        if np.sum(dx) != np.sum(rm_isol(dx)):
+            dxs[di] = rm_isol(dx).flatten()
+            # rm_ids[di] = 0
+    rm_ids = sum_higher(dxs,2)
+    dxs = dxs[rm_ids]
+    if print_data:
+        print_ac_cases(dxs,title='after rm isolated 1c')
+    if ids:
+        return dxs,rm_ids
+    return dxs
+
+def rm_env_cells_dv2(dxs,px,ids=False,print_data=True):
+    # reshape up, for borders
+    dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
+    px = expand_domain(px)
+    dxs = dxs.reshape(dxs.shape[0],px.flatten().shape[0])
+    dxr = mk_dxs_tensor(dxs,px)
+    bx = expand_domain(np.array([[1,1]]))
+    vxs = [bx,bx.T]
+    cx = expand_domain(np.array([[1,0,0,1]]).reshape(2,2))
+    cxs = mk_sx_variants(cx)
+    for vx in vxs:
+        for wi in range(px.shape[0]-vx.shape[0]+1):
+            for wj in range(px.shape[1]-vx.shape[1]+1):
+                wx_ids = np.zeros(dxs.shape[0]).astype(int)
+                wx = np.zeros((px.shape))
+                wx[wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = vx
+                wx_ids[sum_is(dxs*wx.flatten(),2)] = 1
+                wx_ids[sum_nonzero(dxs*mk_moore_nb(wx).flatten())] = 0
+                if np.sum(wx_ids) > 0:
+                    dxr[wx_ids.nonzero()[0],wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = 0
+    # reshape down
+    dxr = dxr[:,1:-1,1:-1]
+    px = px[1:-1,1:-1]
+    dxr = dxr.reshape(dxr.shape[0],px.flatten().shape[0])
+    ft_ids = sum_higher(dxr,2)
+    if print_data:
+        print_ac_cases(dxr[ft_ids],title='after rm env cells dv2:')
+    if ids:
+        return dxr[ft_ids],ft_ids
+    return dxr[ft_ids]
+
+# this version is slower bur safer
+# dxs: domains in matrix from
+# px: sx domain for reshaping
+def rm_non_sx_cells(dxs,px,ids=False):
+    dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
+    dxs = mk_dxs_tensor(dxs,expand_domain(px))
+    dxs_ft = dxs*1
+    # c1 and c2 non sx cases
+    c1 = expand_domain(np.ones((1,1)))
+    c2 = expand_domain(np.ones((1,2)))
+    d2 = expand_domain(np.array([[1,0,0,1]]).reshape(2,2))
+    vs = [c1,c2,c2.T,d2,np.rot90(d2,1)]
+    # remove
+    for vi in tqdm(range(len(vs))):
+        vx = vs[vi]
+        for wi in range(dxs.shape[1]-vx.shape[0]+1):
+            for wj in range(dxs.shape[2]-vx.shape[1]+1):
+                ids1,ids0 = np.zeros(dxs.shape[0]),np.zeros(dxs.shape[0])
+                wxs = dxs_ft[:,wi:wi+vx.shape[0],wj:wj+vx.shape[1]]
+                ids1[sum_is(wxs*vx,np.sum(vx))] = 1
+                ids0[sum_is(wxs*mk_moore_nb(vx),0)] = 1
+                # pdb.set_trace()
+                idsx = (ids1*ids0).nonzero()[0]
+                if idsx.shape[0]>0:
+                    # pdb.set_trace()
+                    dxs_ft[idsx,wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = 0
+                    # dxs_ft[idsx,wi:min(dxs.shape[1]-1,wi+vx.shape[0]),min(dxs.shape[2]-1,wj+vx.shape[1])] = 0
+                    
+    dxs_ft = dxs_ft[:,1:-1,1:-1]
+    dxs_ft = dxs_ft.reshape(dxs_ft.shape[0],px.flatten().shape[0])
+    nz_ids = sum_higher(dxs_ft,2)
+    print_ac_cases(dxs_ft[nz_ids],title='after rm non sx cells:')
+    if ids:
+        return dxs_ft[nz_ids],nz_ids
+    return dxs_ft[nz_ids]
 
 '''
 Classification fxs:
@@ -284,6 +342,89 @@ def mk_minsets_large_dxs(dxs,print_data=True):
         print_ac_cases(dxs,title='minimal sets:')
     dxs = center_tensor_sxs(sort_by_sum(dxs))
     return dxs,min_cases,minmap
+
+
+'''
+mappings
+'''
+def mk_uniform_ids(sx,sx_name,syms,cases):
+    dix = {}
+    dix[0] = {}
+    vxs = sorted([array2int(vxi) for vxi in mk_sx_variants(sx,mk_non_env=False)])
+    dix[0]['sx'] = sx
+    dix[0]['id'] = vxs[0]
+    dix[0]['label'] = sx_name
+    dix[0]['vxs'] = vxs
+    for ei,sym in enumerate(syms):
+        dix[ei+1] = {}
+        sym = expand_domain(rm_zero_layers(sym))
+        vxs = sorted([array2int(vxi) for vxi in mk_sx_variants(sym,mk_non_env=False)])
+        dix[ei+1]['sx'] = sym
+        dix[ei+1]['id'] = vxs[0]
+        dix[ei+1]['label'] = vxs[0]
+        dix[ei+1]['dx_id'] = cases[ei][0]
+        dix[ei+1]['vxs'] = vxs
+        dix[ei+1]['txs'] = cases[ei][1]
+    return dix
+
+def mk_uniform_data(sx,sx_dx,dxs,sx_name,syms,cases,ids):
+    # 0: sx
+    dix = {}
+    dix[0] = {}
+    vxs = sorted([array2int(vxi) for vxi in mk_sx_variants(sx,mk_non_env=False)])
+    dix[0]['sx'] = sx
+    dix[0]['sx_dx'] = sx_dx
+    dix[0]['id'] = vxs[0]
+    dix[0]['label'] = sx_name
+    dix[0]['vxs'] = vxs
+    # 1...n: sx -> sy
+    for ei,sym in enumerate(syms):
+        dix[ei+1] = {}
+        sym = expand_domain(rm_zero_layers(sym))
+        vxs = sorted([array2int(vxi) for vxi in mk_sx_variants(sym,mk_non_env=False)])
+        dix[ei+1]['sx'] = sym
+        dix[ei+1]['id'] = vxs[0]
+        dix[ei+1]['label'] = vxs[0]
+        dix[ei+1]['dx_id'] = cases[ei][0]
+        dix[ei+1]['vxs'] = vxs
+        dix[ei+1]['txs'] = cases[ei][1]
+    # env domain
+    env_info = mk_env_distinctions(sx_dx,dxs,ids)
+    for ei,key in enumerate(ids.keys()):
+        emdx,ncases,env,edx,idx_counts,idx_dist = env_info[key]
+        dix[ei+1]['envs'] = env
+        dix[ei+1]['emd'] = emdx
+    return dix
+
+def mk_omap_sxs(ufs0):
+    # ox = nx.MultiDiGraph()
+    ox = nx.DiGraph()
+    for uf in ufs0:
+        ox.add_node(uf['id'],label=uf['label'],vxs=uf['vxs'])
+    return ox
+# def mk_omap(dix):
+#     ox = nx.DiGraph()
+#     for dk,dv in dix.items():
+#         if dv['id'] not in ox.nodes:
+#             ox.add_node(dv['id'],label=dv['label'],vxs=dv['vxs'])
+#     for dk,dv in dix.items():
+#         if dk>0:
+#             ox.add_edge(dix[0]['id'],dv['id'],weight=dv['txs'])
+#     return ox
+def extend_omap(ox,dix):
+    for dk,dv in dix.items():
+        if dv['id'] not in ox.nodes:
+            ox.add_node(dv['id'],label=dv['label'],vxs=dv['vxs'])
+    for dk,dv in dix.items():
+        if dk>0:
+            ox.add_edge(dix[0]['id'],dv['id'],weight=dv['txs'])
+    return ox        
+
+
+    
+
+
+
 
 '''
 Information fxs

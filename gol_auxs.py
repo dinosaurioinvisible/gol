@@ -1,8 +1,11 @@
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from copy import deepcopy
 import os
 import pdb
+from pyemd import emd
+from pyemd import emd_samples
 
 '''
 mk_gol_pattern
@@ -46,46 +49,101 @@ check_basic_patterns
 
 # make canonical gol patterns (sx,e=0) from word inputs
 # minimal form: active cells + moore neighborhood rectangled
-def mk_gol_pattern(px):
+def mk_gol_pattern(px,domain=False,variants=False):
     if px == 'block':
         dx = np.zeros((4,4))
         dx[1:-1,1:-1] = 1
-        return dx
+        # return dx
     elif px == 'pb0':
         dx = np.ones((2,2))
         dx[0,1] = 0
         dx = np.pad(dx,(1,1))
-        return dx
+        # return dx
     elif px == 'pb2':
         dx = np.zeros((2,4))
         dx[1,:2] = 1
         dx[0,2:] = 1
         dx = np.pad(dx,(1,1))
-        return dx
+        # return dx
     elif px == 'blinker':
         d1 = np.zeros((5,3))
         d1[1:-1,1] = 1
-        d2 = np.ascontiguousarray(d1.T)
-        dx = [d1,d2]
-        return dx
+        if not variants:
+            dx = d1
+        else:
+            d2 = np.ascontiguousarray(d1.T)
+            dx = [d1,d2]
+        # return dx
     elif px == 'glider':
         dx = []
         d1 = np.zeros((5,5))
         d1[1,2] = 1
         d1[2,3] = 1
         d1[3,1:-1] = 1
-        d2 = np.zeros((5,5))
-        d2[1,1] = 1
-        d2[2:-1,2] = 1
-        d2[1:3,3] = 1
-        for di in [d1,d2]:
-            for ri in range(4):
-                dr = np.rot90(di,ri)
-                dt = np.ascontiguousarray(dr.T)
-                dx.extend([dr,dt])
-        return dx
+        if not variants:
+            dx = d1
+        else:
+            d2 = np.zeros((5,5))
+            d2[1,1] = 1
+            d2[2:-1,2] = 1
+            d2[1:3,3] = 1
+            for di in [d1,d2]:
+                for ri in range(4):
+                    dr = np.rot90(di,ri)
+                    dt = np.ascontiguousarray(dr.T)
+                    dx.extend([dr,dt])
+        # return dx
+    elif px == 'gliderA':
+        dx = np.zeros((5,5))
+        dx[1,2] = 1
+        dx[2,3] = 1
+        dx[3,1:-1] = 1
+        # return d1
+    elif px == 'gliderB':
+        dx = np.zeros((5,5))
+        dx[1,1] = 1
+        dx[2:-1,2] = 1
+        dx[1:3,3] = 1
+        # return d2
+    elif px == 'tetrisL':
+        dx = expand_domain(np.ones((1,3)))
+        dx[2,3] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+        # return dx
+    elif px == 'tetrisT':
+        dx = expand_domain(np.ones((1,3)))
+        dx[2,2] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+        # return dx
+    elif px == 'zigzag':
+        dx = expand_domain(np.array([[1,0,1,0],[0,1,0,1]]))
+        # return dx
+    elif px == 'bar':
+        dx = expand_domain(np.ones((1,4)))
+        # return dx
+    elif px == 'tetrisZ':
+        dx = expand_domain(np.array([[0,1,1],[1,1,0]]))
+        # return dx
+    elif px == 'baby':
+        dx = expand_domain(np.array([[1,0,1],[0,1,1]]))
+        # return dx
+    elif px == 'flag':
+        dx = expand_domain(np.ones((2,2)))
+        dx[3,2] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+        # return dx
+    elif px == 'kyte':
+        dx = expand_domain(np.ones((2,2)))
+        dx[3,3] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+        # return dx
+    elif px == 'worm':
+        dx = expand_domain(np.array([[0,0,1,0],[1,1,0,1]]))
     else:
         print('\npattern not defined\n')
+    if domain:
+        return dx,expand_domain(dx)
+    return dx
 
 # game of life transition
 # expanded adds an external layer
@@ -151,7 +209,8 @@ def mk_env_binary_domains(sx,membrane=False):
     sx_dx = expand_domain(rm_zero_layers(sx))
     if membrane:
         sx = expand_domain(sx)
-        sx_dx = expand_domain(np.ones(sx_dx.shape))
+        # sx_dx = expand_domain(np.ones(sx_dx.shape))
+        sx_dx = sx+mk_moore_nb(sx)
     sx_env = mk_moore_nb(sx_dx)
     binary_dxs = mk_binary_domains(np.sum(sx_env).astype(int))
     non_env_ids = np.where(sx_env.flatten()==0)[0]
@@ -357,6 +416,7 @@ def print_ac_cases(doms,rl=0,rh=0,nonzero=True,title=''):
         print('acs: {}, cases: {}'.format(ac,ncases))
     total = sum([nc for ac,nc in ids])
     print('total: {}'.format(total))
+    print()
 
 # remove isolated cells
 # basically same as gol rule, but nb==0 -> cell=0
@@ -601,7 +661,11 @@ def save_as(file,name,ext=''):
         fname = '{}.{}'.format(name,ext)
     while os.path.isfile(fname):
         i = 1
-        name,ext = fname.split('.')
+        if len(fname.split('.')) > 2:
+            name = ''.join(fname.split('.')[:-1])
+            ext = fname.split('.')[-1]
+        else:
+            name,ext = fname.split('.')
         try:
             fi = int(name[-1])+1
             fname = '{}{}.{}'.format(fname[:-1],fi,ext)
@@ -946,3 +1010,170 @@ def check_basic_patterns(dxs,sx=[],dx_div=4,ids=False,print_data=True):
 '''
 end old fxs
 '''
+
+
+'''
+analysis and visualization fxs
+'''
+
+# directed graph
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import networkx as nx
+
+# cases: node start, node end, weight
+# def mk_symset_graph(cases):
+#     if cases.shape[1]==2:
+#         cxs = np.zeros((cases.shape[0],3)).astype(int)
+#         cxs[:,1:] = cases
+#         cases = cxs*1
+#     gx = nx.DiGraph()
+#     # gx = nx.MultiDiGraph()
+#     node_sizes = [np.where(cases[:,1]==i)[0].shape[0] for i in cases[:,1]]
+#     edge_colors = cases[:,2]
+#     for cx in cases:
+#         gx.add_node(cx[1])#,node_size=cx[2])
+#     for cx in cases:
+#         gx.add_edge(cx[0],cx[1])
+#     pos = nx.spring_layout(gx)
+#     cmap = plt.cm.plasma
+#     nodes = nx.draw_networkx_nodes(gx,pos,node_size=node_sizes,node_color="indigo")
+#     edges = nx.draw_networkx_edges(gx,pos,arrowstyle="->",arrowsize=10,edge_color=edge_colors,edge_cmap=cmap,width=2)
+#     pc = mpl.collections.PatchCollection(edges, cmap=cmap)
+#     pc.set_array(edge_colors)
+#     ax = plt.gca()
+#     ax.set_axis_off()
+#     plt.colorbar(pc, ax=ax)
+#     plt.show()
+
+def mk_ox_graph(ox,min_ny=0,closed=False,layout=0):
+    if min_ny>0:
+        rm = []
+        for node in ox.nodes:
+            c = 0
+            for edge in ox.edges:
+                if node==edge[1]:
+                    c += 1
+            if c<min_ny:
+                rm.append(node)
+        ox.remove_nodes_from(rm)
+    if closed:
+        ex = [e[0] for e in ox.edges]
+        ey = [e[1] for e in ox.edges]
+        nc = [ni for ni in ox.nodes if ni in ex and ni in ey]
+        rm = [nr for nr in ox.nodes if nr not in nc]
+        ox.remove_nodes_from(rm)
+        label_dict = {}
+        for nid,label in ox.nodes.data("label"):
+            label_dict[nid] = label
+    edge_colors = [i[2] for i in ox.edges.data("weight")]
+    node_sizes = []
+    for node in ox.nodes:
+        node_sizes.append(np.where(np.array([i[1] for i in ox.edges])==node)[0].shape[0])
+    if closed:
+        node_sizes = [1000*ns for ns in node_sizes]
+        # node_sizes = [0 for ns in node_sizes]
+    if layout==0:
+        pos = nx.circular_layout(ox)
+    else:
+        pos = nx.spring_layout(ox)
+    cmap = plt.cm.plasma
+    if closed:
+        nodes = nx.draw_networkx_nodes(ox,pos,node_size=node_sizes,node_color="w",edgecolors='k',alpha=0.7)
+        edges = nx.draw_networkx_edges(ox,pos,arrowstyle="->",arrowsize=10,edge_color=edge_colors,edge_cmap=cmap,width=2)
+    else:
+        nodes = nx.draw_networkx_nodes(ox,pos,node_size=node_sizes,node_color="indigo")
+        edges = nx.draw_networkx_edges(ox,pos,arrowstyle="->",arrowsize=10,edge_color=edge_colors,edge_cmap=cmap,width=0.5)
+    if closed:
+        labels = nx.draw_networkx_labels(ox,pos,label_dict,font_size=8,alpha=1)
+    pc = mpl.collections.PatchCollection(edges, cmap=cmap)
+    pc.set_array(edge_colors)
+    ax = plt.gca()
+    ax.set_axis_off()
+    # ax.figure.set_size_inches(10,10)
+    plt.colorbar(pc, ax=ax)
+    plt.tight_layout()
+    plt.rcParams['figure.constrained_layout.use'] = True
+    plt.show()
+
+def mk_env_data_plots(dix):
+    for dk,dv in dix.items():
+        if dk>0:
+            envs = dv['envs']
+            dx_envs = dix[0]['sx_dx']*-1 + mk_moore_nb(dix[0]['sx_dx'])*np.max(envs)*2
+            dx_envs += envs
+            pdist = []
+
+def mk_env_distinctions(sx_dx,sx_dxs,sx_ids,sx_name='',mk_plots=False):
+    env_info = {}
+    for key,val in sx_ids.items():
+        ncases = sx_ids[key].shape[0]
+        # all envs overlapped
+        env = np.sum(sx_dxs[val],axis=0).reshape(sx_dx.shape) * np.abs(sx_dx-1)
+        edx = sx_dx*-1 + mk_moore_nb(sx_dx)*np.max(env)*2
+        edx += env
+        # interactional domain
+        idx = mk_moore_nb(mk_moore_nb(sx_dx)) - sx_dx
+        # dists and plots
+        idx_counts = edx[np.where(idx==1)]
+        idx_dist = idx_counts/np.sum(idx_counts)
+        emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)
+        env_info[key] = [emdx,ncases,env,edx,idx_counts,idx_dist]
+    eks = sorted([[key,val[0],val[1]] for key,val in env_info.items()],key=lambda x:x[1],reverse=True)
+    # plots
+    while mk_plots==True:
+        for ei,(key,emdx,ncases) in enumerate(eks):
+            print('[{}] - dxid:{}, emd = {}, ncases = {}'.format(ei,key,emdx,ncases))
+        kx = input('\n? _ ')
+        if kx == 'q' or kx == 'quit':
+            mk_plots = False
+        else:
+            try:
+                key,emd_val,ncases = eks[int(kx)]
+                print(key,emd_val,ncases)
+                emdx,ncases,env,edx,idx_counts,idx_dist = env_info[key]
+                # plots
+                plt.plot(idx_counts)
+                plt.show()
+                cmap = mpl.cm.get_cmap("jet").copy()
+                imx = plt.imshow(edx, vmin=0, vmax=np.max(env), cmap=cmap, aspect='auto')
+                imx.cmap.set_over('white')
+                imx.cmap.set_under('black')
+                plt.colorbar()
+                plt.title('{} environmental distinctions\nEMD info = {}'.format(sx_name,round(emdx,3)))
+                plt.show()
+            except:
+                print('\nunknown input?\n')
+    return env_info
+
+def plot_patterns(ufs,rows=3,cols=4,size=(9,6)):
+    fig,axs = plt.subplots(nrows=rows,ncols=cols,
+                           figsize=size)
+                           # subplot_kw={'xticks':[],'yticks':[]})
+    # plt.axis('off')
+    palette = np.array([[255, 255, 255],   # 0:white
+                        [  0, 255,   0],   # 1:green
+                        [  0,   0, 255],   # 2:blue
+                        [255,   0,   0],   # 3:red
+                        [  0,   0,   0]])  # 4:black
+    for ax,uf in zip(axs.flat,ufs):
+        sx = uf[0]['sx']
+        dx = sx + mk_moore_nb(sx)*2
+        ax.imshow(palette[dx.astype(int)])#,cmap='binary')
+        # ax.grid(visible=True)
+        ax.set_title(uf[0]['label'])
+        ax.axis('off')
+    plt.tight_layout
+    plt.show()
+
+
+
+
+# def mk_sym_sx_ids(symsets):
+#     sym_ids = {}
+#     for sym in symsets:
+#         sym = rm_zero_layers(syml)
+#         sym_id = array2int(sym)
+#         sym_ids[sym_id] = sym
+#     return sym_ids
+
