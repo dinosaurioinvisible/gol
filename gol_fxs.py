@@ -483,3 +483,5 @@ def mk_txs_matrix(pxs,txs,dims=4):
                 fpx_id,px = mk_binary_index(fpx,dims=dims)
                 pxtx.append([fpx_id,(pbi,fpi),px,txs[pbi][fpi][1]])
     return pxtx
+
+

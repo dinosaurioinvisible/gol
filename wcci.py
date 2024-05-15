@@ -41,7 +41,7 @@ gliderB,gliderB_dx = mk_gol_pattern('gliderB',domain=True)
 flag,flag_dx = mk_gol_pattern('flag',domain=True)
 # flag_dx = expand_domain(flag)
 # kyte
-kyte,kyte_dx = mk_gol_pattern('kyte',domain=True)
+kite,kite_dx = mk_gol_pattern('kite',domain=True)
 # worm
 worm,worm_dx = mk_gol_pattern('worm',domain=True)
 
@@ -141,16 +141,16 @@ glb_uf = mk_uniform_ids(gliderB,'glider-B',glb_syms,glb_cases)
 flag_xs,flag_ys,flag_syms,flag_cases,flag_ids = load_data('xgol_flag_cap=7.xgol')
 flag_uf = mk_uniform_ids(flag,'flag',flag_syms,flag_cases)
 
-# kyte_xs,kyte_ys,kyte_syms,kyte_cases,kyte_ids = mk_fwd('kyte',cap=5,save_data=True)
-kyte_xs,kyte_ys,kyte_syms,kyte_cases,kyte_ids = load_data('xgol_kyte_cap=5.xgol')
-kyte_uf = mk_uniform_ids(kyte,'kite',kyte_syms,kyte_cases)
+# kite_xs,kite_ys,kite_syms,kite_cases,kite_ids = mk_fwd('kite',cap=5,save_data=True)
+kite_xs,kite_ys,kite_syms,kite_cases,kite_ids = load_data('xgol_kite_cap=5.xgol')
+kite_uf = mk_uniform_ids(kite,'kite',kite_syms,kite_cases)
 
 # worm_xs,worm_ys,worm_syms,worm_cases,worm_ids = mk_fwd('worm',cap=5,save_data=True)
 worm_xs,worm_ys,worm_syms,worm_cases,worm_ids = load_data('xgol_worm_cap=5.xgol')
 worm_uf = mk_uniform_ids(worm,'worm',worm_syms,worm_cases)
 
 
-ufs = [bk_uf,pb0_uf,bo_uf,tl_uf,tt_uf,gla_uf,zz_uf,bar_uf,tz_uf,bb_uf,glb_uf,flag_uf,kyte_uf,worm_uf]
+ufs = [bk_uf,pb0_uf,bo_uf,tl_uf,tt_uf,gla_uf,zz_uf,bar_uf,tz_uf,bb_uf,glb_uf,flag_uf,kite_uf,worm_uf]
 uf0 = [uf[0] for uf in ufs]
 ox = mk_omap_sxs(uf0)
 for ufi in ufs:
@@ -161,11 +161,11 @@ for ufi in ufs:
 # mk_ox_graph(oxc,min_ny=3)
 # oxc = deepcopy(ox)
 # mk_ox_graph(oxc,closed=True)
-mk_ox_graph(ox,closed=True)
+# mk_ox_graph(ox,closed=True)
 
-# ufsp = [pb0_uf,bo_uf,tl_uf,tt_uf,gla_uf,zz_uf,bar_uf,tz_uf,bb_uf,flag_uf,kyte_uf,worm_uf]
+# ufsp = [pb0_uf,bo_uf,tl_uf,tt_uf,gla_uf,zz_uf,bar_uf,tz_uf,bb_uf,flag_uf,kite_uf,worm_uf]
 # plot_patterns(ufsp)
-
+# import pdb;pdb.set_trace()
 mk_env_distinctions(zigzag_dx,zz_xs,zz_ids,sx_name='zigzag',mk_plots=True)
 mk_env_distinctions(baby_dx,bb_xs,bb_ids,sx_name='baby',mk_plots=True)
 

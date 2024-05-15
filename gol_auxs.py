@@ -205,7 +205,7 @@ def mk_binary_domains(n_cells):
 # given a block, blinker or any other structure from the gol (sx)
 # make all the env arrays for sx
 # e_cells are all the cells in the environment
-def mk_env_binary_domains(sx,membrane=False):
+def mk_env_binary_domains(sx,membrane=False,tensor=False):
     sx_dx = expand_domain(rm_zero_layers(sx))
     if membrane:
         sx = expand_domain(sx)
@@ -218,6 +218,8 @@ def mk_env_binary_domains(sx,membrane=False):
     binary_dxs = np.insert(binary_dxs,non_env_ids,1,axis=1)        
     non_ids = np.where((sx+sx_env).flatten()==0)
     binary_dxs[:,non_ids] = 0
+    if tensor:
+        binary_dxs = binary_dxs.reshape(binary_dxs.shape[0], sx_dx.shape[0], sx_dx.shape[1])
     return binary_dxs
 
 # int > binary array
@@ -358,6 +360,7 @@ def mk_min_sx_variants(dx,moore_nb=False):
             vxs.append(sxi)
     return vxs
 # make all variants (rotation,transposition,non-env/moore nb)
+# this should be mk env or mk non moore nb actually
 def mk_sx_variants(sx,mk_non_env=True):
     vxs,sxs = [],[]
     # rotations
@@ -676,34 +679,35 @@ def save_as(file,name,ext=''):
         pickle.dump(file,f)
     print('\nsaved as: {}\n'.format(fname))
 
-def load_data(filename='',auto=True,ext=''):
+def load_data(filename='',ext='',dirname='gol_exps_data'):
     import pickle
     import os
+    dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
     if filename:
+        if ext:
+            filename += f'.{ext}'
+        fpath = os.path.join(dirpath,filename)
         try:
-            with open(filename,'rb') as fname:
+            with open(fpath,'rb') as fname:
                 fdata = pickle.load(fname)
                 return fdata
         except:
-            print('\n{} not in dir\n'.format(filename))
-            auto = False
-    fnames = [i for i in os.listdir() if '.{}'.format(ext) in i]
-    x = 1
-    while True==True:
+            print('\n{} not as path {}\n'.format(filename,fpath))
+    fnames = [i for i in os.listdir(dirpath) if '.{}'.format(ext) in i]
+    while True:
         print()
         for ei,fi in enumerate(fnames):
             print('{} - {}'.format(ei+1,fi))
-            if not auto:
-                x = int(input('\nfile: _ '))
-            try:
-                with open(fnames[x-1],'rb') as fname:
-                    fdata = pickle.load(fname)
-                    return fdata
-            except:
-                print('\ninvalid input?\n')
-        if auto==True:
-            print('\ndidn\'t find anything\n')
-            auto = False
+        print()
+        x = input('\nfile: _ ')
+        if x == 'q' or x == 'quit':
+            return
+        try:
+            with open(fnames[int(x)-1],'rb') as fname:
+                fdata = pickle.load(fname)
+                return fdata
+        except:
+            print('\ninvalid input? (q/quit to quit)\n')
 
 '''
 old fxs
@@ -1021,30 +1025,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import networkx as nx
 
-# cases: node start, node end, weight
-# def mk_symset_graph(cases):
-#     if cases.shape[1]==2:
-#         cxs = np.zeros((cases.shape[0],3)).astype(int)
-#         cxs[:,1:] = cases
-#         cases = cxs*1
-#     gx = nx.DiGraph()
-#     # gx = nx.MultiDiGraph()
-#     node_sizes = [np.where(cases[:,1]==i)[0].shape[0] for i in cases[:,1]]
-#     edge_colors = cases[:,2]
-#     for cx in cases:
-#         gx.add_node(cx[1])#,node_size=cx[2])
-#     for cx in cases:
-#         gx.add_edge(cx[0],cx[1])
-#     pos = nx.spring_layout(gx)
-#     cmap = plt.cm.plasma
-#     nodes = nx.draw_networkx_nodes(gx,pos,node_size=node_sizes,node_color="indigo")
-#     edges = nx.draw_networkx_edges(gx,pos,arrowstyle="->",arrowsize=10,edge_color=edge_colors,edge_cmap=cmap,width=2)
-#     pc = mpl.collections.PatchCollection(edges, cmap=cmap)
-#     pc.set_array(edge_colors)
-#     ax = plt.gca()
-#     ax.set_axis_off()
-#     plt.colorbar(pc, ax=ax)
-#     plt.show()
 
 def mk_ox_graph(ox,min_ny=0,closed=False,layout=0):
     if min_ny>0:
@@ -1105,6 +1085,7 @@ def mk_env_data_plots(dix):
             pdist = []
 
 def mk_env_distinctions(sx_dx,sx_dxs,sx_ids,sx_name='',mk_plots=False):
+    from scipy.stats import wasserstein_distance as wdist
     env_info = {}
     for key,val in sx_ids.items():
         ncases = sx_ids[key].shape[0]
@@ -1117,11 +1098,13 @@ def mk_env_distinctions(sx_dx,sx_dxs,sx_ids,sx_name='',mk_plots=False):
         # dists and plots
         idx_counts = edx[np.where(idx==1)]
         idx_dist = idx_counts/np.sum(idx_counts)
-        emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)
+        # emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)
+        emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)     # same vals
         env_info[key] = [emdx,ncases,env,edx,idx_counts,idx_dist]
     eks = sorted([[key,val[0],val[1]] for key,val in env_info.items()],key=lambda x:x[1],reverse=True)
     # plots
     while mk_plots==True:
+        print()
         for ei,(key,emdx,ncases) in enumerate(eks):
             print('[{}] - dxid:{}, emd = {}, ncases = {}'.format(ei,key,emdx,ncases))
         kx = input('\n? _ ')
