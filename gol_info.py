@@ -4,7 +4,53 @@ from gol_info_utils import *
 # import pandas as pd
 
 # compare exs vs Exs
+# def env_ids(dmap):
+#     # envs = np.zeros()
+#     envs = np.rec.array(None, dtype=[('n',np.uint32),
+#                                      ('sx',list),
+#                                      ('sy',list)],
+#                                      shape = len(dmap['labels']))
+#     # ids = []
+#     for pxi,px_label in enumerate(dmap['labels']):
+#         # dxs_fname = f'gol_domains_cap=10_{px_label}'
+#         # dxs = load_data(filename=dxs_fname)
+#         for py_label in dmap['labels']:
+#             # ids = dmap[px_label]['fwd'][py_label]
+#             envs[pxi].ids = dmap[px_label]['fwd'][py_label]
+#             envs[pxi].sx = px_label
+#             envs[pxi].sy = py_label
+#             envs[pxi].ntxs = dmap[px_label]['nfwd'][py_label]
 
+
+def get_env_ids(dmap):
+    from collections import defaultdict as dd
+    envs = dd(int)
+    # envs = {}
+    for px in dmap['labels']:
+        for py in dmap['labels']:
+            for ex in dmap[px]['fwd'][py]:
+                envs[ex] += 1
+    print(f'\nenv ids: {len(envs.keys())}, total txs: {sum(envs.values())}')
+    return envs
+    # reps = np.array([[idx,envs[idx]] for idx in envs.keys() if envs[idx]>1])
+    # envs = []
+    # for px in dmap['labels']:
+    #     for py in dmap['labels']:
+    #         envs.append(dmap[px]['fwd'][py])
+    # envs = list(set(list(envs)))
+#     rec_envs = np.rec.array(None, dtype=[('n',np.uint32),
+#                                          ('sxy',np.ndarray)],
+#                                          shape = max(envs.keys()))
+#     for px in dmap['labels']:
+#         for py in dmap['labels']:
+#             for ex in dmap[px]['fwd'][py]:
+#                 rec_envs[ex].n += 1
+#                 rec_envs[ex].sxy = np.append(px)
+#                 rec_envs[ex].sy.append(py)
+#     print(f'\nenv ids: {len(envs)}, total txs: {np.sum(rec_envs.n)}')
+#     return rec_envs
+exs = get_env_ids(dmap)
+    
 
 
 

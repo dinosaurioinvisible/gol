@@ -214,6 +214,15 @@ def is_sx_in_dxs(sx,dxs,pad=False):
             ids += wids.astype(int)            
     return ids
 
+def entropy_fx(dist):
+    h, hb = 0, 0
+    for i in dist:
+        if i > 0:
+            h += i * np.log(i)
+            hb += i * np.log2(i)
+    print(f'\nentropy: {-h}, in bits: {-hb}\n')
+    return -h, -hb
+
 # dx/dy ids for px -> py transition
 def mk_pxpy_txs(px,pxs, dx_contraint=True):
     px_fname = f'gol_tx_domains_cap=10_{px.label}'
