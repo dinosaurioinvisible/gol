@@ -1,96 +1,27 @@
 from gol_info_utils import *
-# from gol_fxs import *
-# from scipy.special import kl_div
-# import pandas as pd
-
-# compare exs vs Exs
-# def env_ids(dmap):
-#     # envs = np.zeros()
-#     envs = np.rec.array(None, dtype=[('n',np.uint32),
-#                                      ('sx',list),
-#                                      ('sy',list)],
-#                                      shape = len(dmap['labels']))
-#     # ids = []
-#     for pxi,px_label in enumerate(dmap['labels']):
-#         # dxs_fname = f'gol_domains_cap=10_{px_label}'
-#         # dxs = load_data(filename=dxs_fname)
-#         for py_label in dmap['labels']:
-#             # ids = dmap[px_label]['fwd'][py_label]
-#             envs[pxi].ids = dmap[px_label]['fwd'][py_label]
-#             envs[pxi].sx = px_label
-#             envs[pxi].sy = py_label
-#             envs[pxi].ntxs = dmap[px_label]['nfwd'][py_label]
+import pandas as pd
 
 
-def get_env_ids(dmap):
-    from collections import defaultdict as dd
-    envs = dd(int)
-    # envs = {}
-    for px in dmap['labels']:
-        for py in dmap['labels']:
-            for ex in dmap[px]['fwd'][py]:
-                envs[ex] += 1
-    print(f'\nenv ids: {len(envs.keys())}, total txs: {sum(envs.values())}')
-    return envs
-    # reps = np.array([[idx,envs[idx]] for idx in envs.keys() if envs[idx]>1])
-    # envs = []
-    # for px in dmap['labels']:
-    #     for py in dmap['labels']:
-    #         envs.append(dmap[px]['fwd'][py])
-    # envs = list(set(list(envs)))
-#     rec_envs = np.rec.array(None, dtype=[('n',np.uint32),
-#                                          ('sxy',np.ndarray)],
-#                                          shape = max(envs.keys()))
-#     for px in dmap['labels']:
-#         for py in dmap['labels']:
-#             for ex in dmap[px]['fwd'][py]:
-#                 rec_envs[ex].n += 1
-#                 rec_envs[ex].sxy = np.append(px)
-#                 rec_envs[ex].sy.append(py)
-#     print(f'\nenv ids: {len(envs)}, total txs: {np.sum(rec_envs.n)}')
-#     return rec_envs
-exs = get_env_ids(dmap)
-    
+'''
+agency
 
+1) mk all domains (dxs)
+2) mk all codomains (dxys)
+3) find py patterns in px codomains (structural transitions)
+4) build transition map
+5) examine tx map, output tx table
+'''
 
-
-
-# kl divergence
-def compare_kldiv(px,py_label):
-    txs = px.txs[py_label]
-    dxs_fname = f'gol_domains_cap=10_{px.label}'
-    dxs = load_data(filename=dxs_fname)
-
-    env_set = px.env_sets[py_label].flatten()
-    env_ids = px.env.flatten().nonzero()[0]
-    env_ct = env_set[env_ids]
-    kl_infos = []
-    info_acum = 0
-    print(f'\n{px.label} -> {py_label}')
-    for ei,tx_id in enumerate(txs):
-        print(f'{ei} - id: {tx_id}')
-
-        env = dxs[tx_id].flatten()[env_ids]
-        print(f'env: {env}')
-        print(f'env cat: {env_ct}\n')
-
-        kld_info = kl_div(env,env_ct)
-        print(f'scipy: {kld_info}')
-        print('KLD(P||Q): P=env, Q=cog. Info lost when approx using Q instead of P')
-        kld_info_pq = np.sum(np.where(env!=0, env*np.log(env/env_ct), 0))
-        print(f'KLD Q=cog info: {kld_info_pq}')
-        info_acum += kld_info_pq
-        kl_infos.append(kld_info_pq)
-        print('KLD(Q|P): ?')
-        kld_info_qp = np.sum(np.where(env_ct!=0, env_ct*np.log(env_ct/env), 0))
-        print(f'KLD Q=env info: {kld_info_qp}')
-
-        print(f'acum. info: {info_acum}\n')
-        import pdb; pdb.set_trace()
-
-    print(f'\nacum. info: {info_acum}\n')
-    return np.array(kl_infos)
-
-
+# 1)
+# mk_px_domains(pb0, cap=False, save=True)
+# 2)
+# mk_px_codomains(pb0, cap=False, save=True)
+# 3)
+# mk_px_data(pxs)
+# 4) 
+# mk_tx_map(pxs)
+# 5) 
+txmap = load_data(filename='gol_txmap_no_cap')
+txs = get_tx_counts(txmap)
 
 

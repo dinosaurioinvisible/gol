@@ -392,7 +392,7 @@ def mk_sx_variants(sx,mk_non_env=True):
                 vx_in = True
                 break
         if not vx_in:
-            sxs.append(vxi)
+            sxs.append(vxi.astype(int))
     return sxs
 
 # check activation continuity between transitions

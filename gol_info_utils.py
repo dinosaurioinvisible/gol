@@ -1,7 +1,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from gol_auxs import mk_gol_pattern, mk_sx_variants
 from tqdm import tqdm
 
 # sx, dx, etc. astype int?
@@ -11,31 +10,46 @@ class GolPattern:
         self.sx, self.dx = mk_gol_pattern(self.label, domain=True)
         self.mb = mk_moore_nb(self.dx)                 # membrane
         self.env = mk_moore_nb(self.dx + self.mb)      # environment
-        self.mk_rec_vxs()
+        self.id = array2int(self.sx)
+        self.mk_rec_variants()
+        # self.mk_rec_vxs()
         # self.txs = {}
         self.all_txs, self.ntxs = 0, 0
         self.env_sets = {}
         if txs:
             self.get_txs_data()
 
-    def mk_rec_vxs(self):
-        vxs = mk_sx_variants(self.sx, mk_non_env=True)
+    # def mk_rec_vxs(self):
+    #     vxs = mk_sx_variants(self.sx, mk_non_env=True)
+    #     self.vxs = np.rec.array(None, dtype=[('sx',np.ndarray),
+    #                                          ('e0',np.bool_),
+    #                                          ('ecells',np.uint8),
+    #                                          ('id',np.uint64)],
+    #                                          shape = len(vxs))
+    #     for ei,vxi in enumerate(vxs):
+    #         self.vxs[ei].sx = vxi
+    #         ecells = vxi.nonzero()[0].shape[0] - self.sx.nonzero()[0].shape[0]
+    #         self.vxs[ei].ecells = ecells
+    #         self.vxs[ei].e0 = True if ecells == 0 else False
+    #         env_mask = np.ones((vxi.shape))
+    #         env_mask[1:-1,1:-1] = 0     # so sx & sx+env have the same id
+    #         self.vxs[ei].id = array2int(vxi*env_mask)
+    #     self.nvxs = len(vxs)
+    #     self.sxs0 = self.vxs.sx[self.vxs.ecells==False]
+
+    def mk_rec_variants(self):
+        vxs = mk_sx_variants(self.sx)
         self.vxs = np.rec.array(None, dtype=[('sx',np.ndarray),
-                                             ('e0',np.bool_),
-                                             ('ecells',np.uint8),
+                                             ('mb',np.ndarray),
+                                             ('env',np.ndarray),
                                              ('id',np.uint64)],
                                              shape = len(vxs))
         for ei,vxi in enumerate(vxs):
             self.vxs[ei].sx = vxi
-            ecells = vxi.nonzero()[0].shape[0] - self.sx.nonzero()[0].shape[0]
-            self.vxs[ei].ecells = ecells
-            self.vxs[ei].e0 = True if ecells == 0 else False
-            env_mask = np.ones((vxi.shape))
-            env_mask[1:-1,1:-1] = 0     # so sx & sx+env have the same id
-            self.vxs[ei].id = array2int(vxi*env_mask)
-        
-        self.nvxs = len(vxs)
-        self.sxs0 = self.vxs.sx[self.vxs.ecells==False]
+            self.vxs[ei].mb = mk_moore_nb(vxi)
+            self.vxs[ei].env = mk_moore_nb(expand_domain(vxi+mk_moore_nb(vxi)))
+            self.vxs[ei].id = array2int(vxi)
+
 
     def get_txs_data(self):
         fname = f'gol_px_txs_ct_{self.label}'
@@ -97,6 +111,101 @@ class GolPattern:
                 except:
                     import pdb; pdb.set_trace()
 
+'''basic fxs'''
+# make canonical gol patterns (sx,e=0) from word inputs
+# minimal form: active cells + moore neighborhood rectangled
+def mk_gol_pattern(px,domain=False):
+    # active cells = 3
+    if px == 'blinker':
+        dx = np.zeros((5,3))
+        dx[1:-1,1] = 1
+    elif px == 'pb0':
+        dx = np.ones((2,2))
+        dx[0,1] = 0
+        dx = np.pad(dx,(1,1))
+    # active cells = 4
+    elif px == 'block':
+        dx = np.zeros((4,4))
+        dx[1:-1,1:-1] = 1
+    elif px == 'bar':
+        dx = expand_domain(np.ones((1,4)))
+    elif px == 'baby':
+        dx = expand_domain(np.array([[1,0,1],[0,1,1]]))
+    elif px == 'worm':
+        dx = expand_domain(np.array([[0,0,1,0],[1,1,0,1]]))
+    elif px == 'zigzag':
+        dx = expand_domain(np.array([[1,0,1,0],[0,1,0,1]]))
+    elif px == 'tetrisL':
+        dx = expand_domain(np.ones((1,3)))
+        dx[2,3] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+    elif px == 'tetrisT':
+        dx = expand_domain(np.ones((1,3)))
+        dx[2,2] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+    elif px == 'tetrisZ':
+        dx = expand_domain(np.array([[0,1,1],[1,1,0]]))
+    # also 4, but newer (after alife24)
+    elif px == 'tub':
+        dx = np.zeros((3,3))
+        dx[1,:] = 1
+        dx[:,1] = 1
+        dx[1,1] = 0
+        dx = np.pad(dx,(1,1))
+    elif px == 'helix':
+        dx = np.zeros((2,4))
+        dx[1,:2] = 1
+        dx[0,2:] = 1
+        dx = np.pad(dx,(1,1))
+    elif px == 'cup':
+        dx = expand_domain(np.array([[1,0,0,1],[0,1,1,0]]))
+    elif px == 'prybar':
+        dx = np.zeros((3,3))
+        dx[0,1] = 1
+        dx[1] = [1,0,1]
+        dx[2,2] = 1
+        dx = expand_domain(dx)
+    # active cells = 5
+    elif px == 'gliderA':
+        dx = np.zeros((5,5))
+        dx[1,2] = 1
+        dx[2,3] = 1
+        dx[3,1:-1] = 1
+    elif px == 'gliderB':
+        dx = np.zeros((5,5))
+        dx[1,1] = 1
+        dx[2:-1,2] = 1
+        dx[1:3,3] = 1
+    elif px == 'flag':
+        dx = expand_domain(np.ones((2,2)))
+        dx[3,2] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+    elif px == 'kyte':
+        dx = expand_domain(np.ones((2,2)))
+        dx[3,3] = 1
+        dx = expand_domain(rm_zero_layers(dx))
+    # also 5, but later inclusion (after alife24)
+    elif px == 'firefly':
+        dx = np.zeros((4,4))
+        dx[0,3] = 1
+        dx[1] = [1,0,1,0]
+        dx[2,1] = 1
+        dx[3,2] = 1
+        dx = expand_domain(dx)
+    elif px == 'ufo':
+        dx = np.zeros((4,4))
+        dx[0,2] = 1
+        dx[1] = [0,1,0,1]
+        dx[2,0] = 1
+        dx[3,1] = 1
+        dx = expand_domain(dx)
+    else:
+        print(f'\n\"{px}\" pattern not defined\n')
+    dx = dx.astype(int)
+    if domain:
+        return dx,expand_domain(dx)
+    return dx
+
 # array to int
 def array2int(arr):
     xi = np.sum([x<<e for e,x in enumerate(arr.flatten().astype(int))])
@@ -144,12 +253,30 @@ def mk_moore_nb(sxr):
 def mk_binary_domains(n_cells):
     n_cells = n_cells if type(n_cells)==int else int(n_cells)
     doms = np.zeros((2**n_cells,n_cells)).astype(int)
-    for i in range(n_cells):
+    for i in tqdm(range(n_cells)):
         f = 2**i
         xi = np.concatenate((np.zeros(f),np.ones(f)))
         n = int(2**n_cells/(2**(i+1)))
         doms[:,-1-i] = np.tile(xi,n)
     return doms
+
+# make all rotation and transposed cases
+def mk_sx_variants(sx):
+        vxs,vars = [],[]
+        # rotations and reflections
+        for ri in range(4):
+            sxr = np.rot90(sx,ri)
+            sxt = np.ascontiguousarray(sxr.T)
+            vars.extend([sxr,sxt])
+        for var in vars:
+            vx_in = False
+            for vxi in vxs:
+                if np.array_equal(var,vxi):
+                    vx_in = True
+                    break
+            if not vx_in:
+                vxs.append(var.astype(int))
+        return vxs
 
 # matrix shaped data; tx: tensor sample for reshaping
 def mk_tensor(mx,tx):
@@ -157,11 +284,35 @@ def mk_tensor(mx,tx):
         return mx
     return mx.reshape(mx.shape[0],tx.shape[0],tx.shape[1])
 
+# print pxs number of env cell and variants
+def print_pxs_ncases(pxs):
+    npxs = [[i,px.vxs.size] for i,px in enumerate(pxs)]
+    npxs = sorted(npxs, key=lambda x:x[1], reverse=False)
+    print()
+    for pxi in npxs:
+        px = pxs[pxi[0]]
+        print(f'{px.label}:{" "*(7-len(px.label))} variants={pxi[1]}, \tsx_cells={px.sx.sum()}, memb={px.mb.sum()}, env={px.env.sum()}')
+
+def entropy_fx(dist):
+    h, hb = 0, 0
+    for i in dist:
+        if i > 0:
+            h += i * np.log(i)
+            hb += i * np.log2(i)
+    print(f'\nentropy: {-h}, in bits: {-hb}\n')
+    return -h, -hb
+
+
+'''make domains, codomains, transitions'''
+
 def mk_px_domains(px,cap=10,save=False):
     env_bin_dxs = mk_binary_domains(px.env.sum())
     px_env_dxs = np.zeros((env_bin_dxs.shape[0],px.dx.flatten().shape[0])).astype(int)
     env_ids = px.env.flatten().nonzero()[0]
-    for i,env_id in enumerate(env_ids):
+    # for i,env_id in tqdm(enumerate(env_ids)):
+    #     px_env_dxs[:,env_id] = env_bin_dxs[:,i]
+    for i in tqdm(range(len(env_ids))):
+        env_id = env_ids[i]
         px_env_dxs[:,env_id] = env_bin_dxs[:,i]
     if cap:
         px_env_dxs = px_env_dxs[px_env_dxs.sum(axis=1)<=cap]       
@@ -169,6 +320,7 @@ def mk_px_domains(px,cap=10,save=False):
     px_env_dxs[:,sx_ids] = 1
     px_env_dxs = mk_tensor(px_env_dxs,px.dx)
     if save:
+        cap = cap if cap else f'no_cap={px.env.sum()}'
         fname = f'gol_domains_cap={cap}_{px.label}'
         save_as(px_env_dxs,name=fname)
         return
@@ -194,6 +346,18 @@ def multi_gol_tx(dxs):
         dys[di] = gol_tx(dxs[di])
     return dys
 
+# mk all txs from domain
+def mk_px_codomains(px,cap=10,save=True):
+    cap = cap if cap else f'no_cap={px.env.sum()}'
+    fname = f'gol_domains_cap={cap}_{px.label}'
+    dxs = load_data(filename=fname)
+    dxys = multi_gol_tx(dxs)
+    if save:
+        fname = f'gol_tx_domains_cap={cap}_{px.label}'
+        save_as(dxys,name=fname)
+        return
+    return dxys
+
 # sliding window matching sx (2d) in all dxs (3d)
 # optional pad (for pxs ct would be false in padded borders)
 def is_sx_in_dxs(sx,dxs,pad=False):
@@ -213,128 +377,175 @@ def is_sx_in_dxs(sx,dxs,pad=False):
             # wids[np.sum(wx*sx_nz,axis=(1,2))>0] = 0
             ids += wids.astype(int)            
     return ids
-
-def entropy_fx(dist):
-    h, hb = 0, 0
-    for i in dist:
-        if i > 0:
-            h += i * np.log(i)
-            hb += i * np.log2(i)
-    print(f'\nentropy: {-h}, in bits: {-hb}\n')
-    return -h, -hb
-
+    
 # dx/dy ids for px -> py transition
-def mk_pxpy_txs(px,pxs, dx_contraint=True):
-    px_fname = f'gol_tx_domains_cap=10_{px.label}'
-    px_dys = load_data(filename=px_fname)
-    # if dx_contraint:
-    di,dj = px_dys.shape[1:]
-    vi,vj = 0,0
-        # patterns outside dx space are made from env
-        # px_dys = px_dys[:,1:-1,1:-1]
+# search (py) patterns in codomains (dxys) (i.e., find transitions)
+def find_pxpy_txs(px,pxs, cap=False):
+    # px pattern codomain
+    from copy import deepcopy
+    pxs_cp = deepcopy(pxs)
+    cap = cap if cap else f'no_cap={px.env.sum()}'
+    codomain_fname = f'gol_tx_domains_cap={cap}_{px.label}'
+    dxys = load_data(filename=codomain_fname)
+    di,dj = dxys.shape[1:]
     px_txs = {}
-    for py in pxs:
+    # look for patterns
+    for py in pxs_cp:
         print(f'\n{px.label} -> {py.label:}')
-        ids = np.zeros(px_dys.shape[0]).astype(int)
-        for i in tqdm(range(py.vxs.sx.shape[0])):
+        ids = np.zeros(dxys.shape[0]).astype(int)
+        # for each variant of the pattern
+        for i in tqdm(range(py.vxs.size)):
             sy = py.vxs[i].sx
-            # patterns outside dx space are made from env
-            if dx_contraint:
-                vi,vj = (np.array(px_dys.shape[1:] - np.array(sy.shape) -2)/2).astype(int)
-            ids += is_sx_in_dxs(sy,px_dys[:,vi:di-vi,vj:dj-vj])
-            # ids += is_sx_in_dxs(sy,px_dys)
+            mb = py.vxs[i].mb
+            sy_i,sy_j = sy.shape
+            # reshape to omit sy structures non overlapping original sx
+            vi,vj = (np.array(dxys.shape[1:] - np.array(sy.shape) -2)/2).astype(int)
+            dxy = dxys[:,vi:di-vi,vj:dj-vj]
+            dxy_i,dxy_j = dxy.shape[1:]
+            # sliding tensor window
+            for wi in range(dxy_i-sy_i+1):
+                for wj in range(dxy_j-sy_j+1):
+                    wx = dxys[:,wi:wi+sy.shape[0],wj:wj+sy.shape[1]]
+                    # sx is there, memb is there (sum memb cells = 0)
+                    # wids = np.zeros(dxys.shape[0])
+                    # wids[np.sum(wx*sy,axis=(1,2))==sy.sum()] += 0.5
+                    # wids[wx.sum(axis=(1,2))==sy.sum] += 0.5
+                    # ids += wids.astype(int)
+                    wids = np.zeros(dxy.shape[0])
+                    wids[np.sum(wx*sy,axis=(1,2))==sy.sum()] += 0.5
+                    wids[np.sum(wx*mb,axis=(1,2))==0] += 0.5
+                    ids += wids.astype(int)
         # is there more than 1 sx in dx?
-        if ids[ids>1].shape[0] > 0:
-            print(f'\nmore than one sx?:\n{ids[ids>1].shape[0]} cases\n{ids[ids>1]}')
-            examples = np.where(ids>1)[0][:5]
-            for exi in examples:
-                print(f'\n{exi}')
-                print(px_dys[exi])
-            # import pdb; pdb.set_trace()
+        # if ids[ids>1].shape[0] > 0:
+        #     print(f'\nmore than one sx?:\n{ids[ids>1].shape[0]} cases\n{ids[ids>1]}')
+        #     examples = np.where(ids>1)[0][:5]
+        #     for exi in examples:
+        #         print(f'\n{exi}')
+        #         print(dxys[exi])
         px_txs[py.label] = np.where(ids>0)[0]
     # disintegrations
-    px_txs['end'] = np.where(np.sum(px_dys[:,2:-2,2:-2]*px.sx,axis=(1,2))<1)[0]
+    px_txs['end'] = np.where(np.sum(dxys[:,2:-2,2:-2]*px.sx,axis=(1,2))<1)[0]
     # info
-    all_txs = px_dys.shape[0]
+    all_txs = dxys.shape[0]
     ntxs = 0
     print()
     for key in px_txs.keys():
         ntxs += px_txs[key].shape[0]
         print(f'{key}: {px_txs[key].shape[0]}')
     print(f'{ntxs} txs known, {all_txs - ntxs}/{all_txs} unknown')
-    # return np.where(ids>0)[0]
-    # save_as(px_txs,name=f'gol_px_txs_{px.label}')
-    fname = 'gol_px_txs_{}{}'.format('ct_' if dx_contraint else '', px.label)
+    fname = f'gol_px_txs_cap={cap}_{px.label}'
     save_as(px_txs,name=fname)
 
-def mk_omap(pxs):
-    omap = {}
-    labels = []
+def mk_px_data(pxs):
     for px in pxs:
-        labels.append(px.label)
-        omap[px.label] = {}
-        omap[px.label]['fwd'] = {}
-        omap[px.label]['back'] = {}
-        omap[px.label]['nfwd'] = {}
-        omap[px.label]['nback'] = {}
-        omap[px.label]['edx'] = {}
-    print()
-    for px in pxs:
-        for li in tqdm(range(len(labels))):
-            py_label = labels[li]
-            omap[px.label]['fwd'][py_label] = px.txs[py_label]
-            omap[py_label]['back'][px.label] = px.txs[py_label]
-            omap[px.label]['nfwd'][py_label] = px.txs[py_label].shape[0]
-            omap[py_label]['nback'][px.label] = px.txs[py_label].shape[0]
-            omap[px.label]['edx'][py_label] = px.env_sets[py_label]
-    return omap
+        print(f'\n{px.label}')
+        is_dx, is_dxy, is_txs = check_px_data(px, cap=False)
+        print(f'dxs data: {is_dx}, co-dxs: {is_dxy}, txs data: {is_txs}')
+        if not is_dx:
+            print(f'mk {px.label} bin and env domains:')
+            mk_px_domains(px, cap=False, save=True)
+        if not is_dxy:
+            mk_px_codomains(px, cap=False, save=True)
+        if not is_txs:
+            find_pxpy_txs(px,pxs, cap=False)
 
-# sx -> sy : tx ids : env set
-# sx -> sy : n txs : env set weight/cardinality
-# sx <- sy : tx ids : backwards env set?
-# sx <- sy : n txs : backwards weight/cardinality
-# sx -> sy : dom x
-# sx -> sy : dom y
-# sx -> sy : delta sx,sy
-# sx -> sy : eks : environmental distinctions
-# sx -> sy : dom y sums
-def mk_delta_map(pxs,omap):
-    # make dicts
-    dmap = {}
-    dmap['labels'] = list(omap.keys())
+# transition map (no caps)
+def mk_tx_map(pxs):
+    # container dict
+    txmap = {}
     for px in pxs:
-        dmap[px.label] = {}
-        for ku in ['fwd', 'nfwd', 'back', 'nback', 'env_dks', 'dxs', 'dys', 'sxy', 'dysums']:
-            dmap[px.label][ku] = {}
-    # direct copy from omap
+        txmap[px.label] = {}
+        for py in pxs:
+            txmap[px.label][py.label] = {}
+    # load data
     for px in pxs:
-        for py_label in dmap['labels']:
-            # fwd tx ids, n, bwd tx ids, n, env distinctions
-            for txu in ['fwd', 'nfwd', 'back', 'nback']:
-                dmap[px.label][txu][py_label] = omap[px.label][txu][py_label]
-                dmap[px.label]['env_dks'][py_label] = omap[px.label]['edx'][py_label]
-    # load domains data
-    for px in pxs:
-        px_dxs = load_data(filename=f'gol_domains_cap=10_{px.label}')
-        px_dys = load_data(filename=f'gol_tx_domains_cap=10_{px.label}')
-        px_dys_ct = px_dys[:,1:-1,1:-1]
-        pxdx = px.dx.astype(int)
-        for py_label in dmap['labels']:
-            # sx domains, sy domains, sxy transition, sy domain sums 
-            dxs_tensor = np.zeros((omap[px.label]['nfwd'][py_label],pxdx.shape[0],pxdx.shape[1])).astype(int)
-            dys_tensor = np.zeros((omap[px.label]['nfwd'][py_label],pxdx.shape[0]+2,pxdx.shape[1]+2)).astype(int)
-            sxy_tensor = np.zeros((omap[px.label]['nfwd'][py_label],pxdx.shape[0],pxdx.shape[1])).astype(int)
-            for ei,id in enumerate(omap[px.label]['fwd'][py_label]):
-                dxs_tensor[ei] = px_dxs[id]
-                dys_tensor[ei] = px_dys[id]
-                sxy_tensor[ei] = pxdx + px_dys_ct[id]
-            dmap[px.label]['dxs'][py_label] = dxs_tensor
-            dmap[px.label]['dys'][py_label] = dys_tensor
-            dmap[px.label]['sxy'][py_label] = sxy_tensor
-            dmap[px.label]['dysums'] = dys_tensor.sum(axis=0)[1:-1,1:-1]
-    fname = f'gol_delta_map_cap=10'
-    save_as(dmap, name=fname)
-    # return dmap
+        cap = f'no_cap={px.env.sum()}'
+        print(f'\npx: {px.label}, cap = {px.env.sum()}')
+        px_dxs = load_data(filename=f'gol_domains_cap={cap}_{px.label}')
+        px_dxys = load_data(filename=f'gol_tx_domains_cap={cap}_{px.label}')
+        px_txs = load_data(filename=f'gol_px_txs_cap={cap}_{px.label}')
+        for py_label in px_txs.keys():
+            if py_label == 'end':
+                pass
+            else:
+                # n txs, ids, dx domain, dy domain, env sets/categories
+                txmap[px.label][py_label]['nt'] = px_txs[py_label].shape[0]
+                txmap[px.label][py_label]['ids'] = px_txs[py_label]
+                txmap[px.label][py_label]['dx'] = px_dxs[px_txs[py_label]]
+                txmap[px.label][py_label]['dy'] = px_dxys[px_txs[py_label]]
+                txmap[px.label][py_label]['ek'] = px_dxs[px_txs[py_label]].sum(axis=(0)) * px.env
+    save_as(txmap,name='gol_txmap_no_cap')
+
+'''plotting, sorting data, etc'''
+
+def get_tx_counts(txmap,print_data=True,table=False,to_csv=False):
+    import pandas as pd
+    txs = {}
+    for px in txmap.keys():
+        txs[px] = {}
+        if print_data:
+            print()
+        px_txs = 0
+        for py in txmap[px].keys():
+            nt = txmap[px][py]['nt']
+            txs[px][py] = nt
+            if print_data:
+                print(f'{px} -> {py} txs = {nt}')
+            px_txs += nt
+        if print_data:
+            print(f'{px} total txs = {px_txs}')
+    if to_csv==True or table==True:
+        # pandas sorts it backwards (transposed)
+        pd_txs = pd.DataFrame.from_dict(txs).transpose()
+        if to_csv:
+            pd_txs.to_csv('txs.csv')
+    if table:
+        return pd_txs
+    return txs
+
+palette = np.array([[255, 255, 255],   # 0:white
+                    [  0, 255,   0],   # 1:green
+                    [  0,   0, 255],   # 2:blue
+                    [255,   0,   0],   # 3:red
+                    [255, 255,   0],   # 4:yellow
+                    [255, 128,   0],   # 5:orange
+                    [255, 153, 255],   # 6:pink
+                    [160,  32, 240],   # 7:purple
+                    [128, 128, 128],   # 8:gray
+                    [  0,   0,   0]])  # 9:black
+
+def plot_px(px, title='', colors=(1, 9, 2, 0)):
+    fig,ax = plt.subplots(1,1)
+    sys_color, memb_color, env_color, out_color = colors
+    dx = px.dx*sys_color + px.mb*memb_color + px.env*env_color
+    imx = ax.imshow(palette[dx.astype(int)])
+    title = title if title else f'{px.label} domain'
+    # ax.grid(visible=True)
+    ax.set_title(title, color='black')
+    ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+    return dx
+
+def plot_pxs(pxs):
+    fig,axs = plt.subplots(nrows=rows,
+                           ncols=cols,
+                           figsize=size)
+
+def plot_patterns(ufs,rows=3,cols=4,size=(9,6)):
+    fig,axs = plt.subplots(nrows=rows,ncols=cols,
+                           figsize=size)
+                           # subplot_kw={'xticks':[],'yticks':[]})
+    # plt.axis('off')
+    for ax,uf in zip(axs.flat,ufs):
+        sx = uf[0]['sx']
+        dx = sx + mk_moore_nb(sx)*2
+        ax.imshow(palette[dx.astype(int)])#,cmap='binary')
+        # ax.grid(visible=True)
+        ax.set_title(uf[0]['label'])
+        ax.axis('off')
+    plt.tight_layout
+    plt.show()
 
 '''save, load, etc'''
 def save_as(file,name,fdir='gol_exps_data',ext='gol_info'):
@@ -356,7 +567,7 @@ def save_as(file,name,fdir='gol_exps_data',ext='gol_info'):
         pickle.dump(file,f)
     print('\nsaved as: {}\n'.format(fname))
 
-def load_data(filename='',ext='gol_info',dirname='gol_exps_data'):
+def load_data(filename='', ext='gol_info',dirname='gol_exps_data'):
     import pickle
     import os
     dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
@@ -389,12 +600,27 @@ def load_data(filename='',ext='gol_info',dirname='gol_exps_data'):
             import pdb; pdb.set_trace()
             print('\ninvalid input? (q/quit to quit)\n')
 
+# check, domain, codomain, txs data
+# assuming constrained search (ct_) for txs
+def check_px_data(px, cap=False, ext='gol_info',dirname='gol_exps_data'):
+    import os
+    cap = cap if cap else f'no_cap={px.env.sum()}'
+    dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
+    domain_fname = f'gol_domains_cap={cap}_{px.label}.{ext}'
+    codomain_fname = f'gol_tx_domains_cap={cap}_{px.label}.{ext}'
+    txs_fname = f'gol_px_txs_ct_cap={cap}_{px.label}.{ext}'
+    are_files = [os.path.isfile(os.path.join(dirpath,fname)) for fname in [domain_fname,codomain_fname,txs_fname]]
+    return are_files
+
+
+'''run some stuff'''
 
 blinker = GolPattern('blinker')
 pb0 = GolPattern('pb0')
 block = GolPattern('block')
 gla = GolPattern('gliderA')
 glb = GolPattern('gliderB')
+# for alife24
 ttz = GolPattern('tetrisZ')
 ttt = GolPattern('tetrisT')
 ttl = GolPattern('tetrisL')
@@ -404,8 +630,21 @@ baby = GolPattern('baby')
 flag = GolPattern('flag')
 kyte = GolPattern('kyte')
 worm = GolPattern('worm')
+# new, after alife24
+tub = GolPattern('tub')
+helix = GolPattern('helix')
+cup = GolPattern('cup')
+# 128 variants, 24 env cells & not so common
+# pbar = GolPattern('prybar')
+# these have 2048 variants each
+# ffly = GolPattern('firefly')
+# ufo = GolPattern('ufo')
 
-pxs = [blinker,pb0,block,gla,glb,ttz,ttt,ttl,zz,bar,baby,flag,kyte,worm]
+pxs = [blinker,pb0,block,gla,glb,                   # basic
+       ttz,ttt,ttl,zz,bar,baby,flag,kyte,worm,      # for alife24
+       tub,helix,cup]                          # after alife24
+
+#print_pxs_ncases(pxs)
 
 # 1) make domains (dxs)
 # for px in pxs:
@@ -420,10 +659,8 @@ pxs = [blinker,pb0,block,gla,glb,ttz,ttt,ttl,zz,bar,baby,flag,kyte,worm]
 #     save_as(dys,name=fname)
 
 # 3) get txs (dxs -> dys) data (labels, ids & n txs)
-# from copy import deepcopy
-# pxs_cp = [deepcopy(px) for px in pxs]
 # for px in pxs:
-#     mk_pxpy_txs(px,pxs_cp)
+#     find_pxpy_txs(px,pxs_cp)
 
 # 4) make txs map, dict for graph-like data
 # (change txs=True in GolPattern class)
@@ -436,4 +673,4 @@ pxs = [blinker,pb0,block,gla,glb,ttz,ttt,ttl,zz,bar,baby,flag,kyte,worm]
 
 # 5) make delta(sx,sy) for info comparisons & put all together
 # mk_delta_map(pxs,omap)
-dmap = load_data(filename='gol_delta_map_cap=10')
+# dmap = load_data(filename='gol_delta_map_cap=10')
