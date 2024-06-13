@@ -1,41 +1,22 @@
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 # sx, dx, etc. astype int?
 class GolPattern:
-    def __init__(self, name, txs=False):
+    def __init__(self, name):
         self.label = name
         self.sx, self.dx = mk_gol_pattern(self.label, domain=True)
+        self.dy = expand_domain(self.dx)
         self.mb = mk_moore_nb(self.dx)                 # membrane
         self.env = mk_moore_nb(self.dx + self.mb)      # environment
         self.id = array2int(self.sx)
         self.mk_rec_variants()
-        # self.mk_rec_vxs()
         # self.txs = {}
-        self.all_txs, self.ntxs = 0, 0
-        self.env_sets = {}
-        if txs:
-            self.get_txs_data()
-
-    # def mk_rec_vxs(self):
-    #     vxs = mk_sx_variants(self.sx, mk_non_env=True)
-    #     self.vxs = np.rec.array(None, dtype=[('sx',np.ndarray),
-    #                                          ('e0',np.bool_),
-    #                                          ('ecells',np.uint8),
-    #                                          ('id',np.uint64)],
-    #                                          shape = len(vxs))
-    #     for ei,vxi in enumerate(vxs):
-    #         self.vxs[ei].sx = vxi
-    #         ecells = vxi.nonzero()[0].shape[0] - self.sx.nonzero()[0].shape[0]
-    #         self.vxs[ei].ecells = ecells
-    #         self.vxs[ei].e0 = True if ecells == 0 else False
-    #         env_mask = np.ones((vxi.shape))
-    #         env_mask[1:-1,1:-1] = 0     # so sx & sx+env have the same id
-    #         self.vxs[ei].id = array2int(vxi*env_mask)
-    #     self.nvxs = len(vxs)
-    #     self.sxs0 = self.vxs.sx[self.vxs.ecells==False]
+        # self.all_txs, self.ntxs = 0, 0
+        # self.env_sets = {}
 
     def mk_rec_variants(self):
         vxs = mk_sx_variants(self.sx)
@@ -51,65 +32,6 @@ class GolPattern:
             self.vxs[ei].id = array2int(vxi)
 
 
-    def get_txs_data(self):
-        fname = f'gol_px_txs_ct_{self.label}'
-        self.txs = load_data(filename=fname)
-        # clean txs info: CT in dy?
-        self.txs_info()
-        self.mk_env_sets()
-        
-    def txs_info(self):
-        print('{}'.format(f'\n{self.label} ->' if len(self.txs.keys())>0 else '\nno txs info\n'))
-        self.ntxs = 0
-        for key in self.txs.keys():
-            self.ntxs += self.txs[key].shape[0]
-            print(f'{key}: {self.txs[key].shape[0]}')
-        print(f'{self.ntxs} txs known')
-        if self.all_txs:
-            print(f'{self.all_txs - self.ntxs}/{self.all_txs} txs unknown')
-
-    def mk_env_sets(self):
-        dxs_fname = f'gol_domains_cap=10_{self.label}'
-        # dys_fname = f'gol_tx_domains_cap=10_{px.label}'
-        dxs = load_data(filename=dxs_fname)
-        # dys = load_data(filename=dys_fname)
-        self.all_txs = dxs.shape[0]
-        for key in self.txs.keys():
-            dxs_sums = np.zeros((self.dx.shape)).astype(int)
-            for dx_id in self.txs[key]:
-                dxs_sums += dxs[dx_id]
-            dxs_sums *= np.abs(self.dx - 1).astype(int)
-            self.env_sets[key] = dxs_sums/dxs_sums.sum()
-
-    def plot_domains(self):
-        mk_plots = True
-        while mk_plots:
-            print(f'\n{self.label} ->')
-            for ei,key in enumerate(self.env_sets.keys()):
-                print(f'[{ei}] -> {key}, ncases = {self.txs[key].shape[0]}')
-            kx = input('\n? _ ')
-            if kx == 'q' or kx == 'quit':
-                mk_plots = False
-            else:
-                try:
-                    # info
-                    # plots
-                    kx_label = list(self.env_sets.keys())[int(kx)]
-                    domain = self.env_sets[kx_label]
-                    # cmap = mpl.cm.get_cmap("jet").copy()
-                    non_dx = self.dx + self.mb + self.env - 1
-                    domain += non_dx
-                    domain += self.mb * -1
-                    domain += self.dx * 2
-                    ex_dx = self.env * domain
-                    imx = plt.imshow(domain, vmin=0, vmax=np.max(ex_dx), cmap='magma', aspect='auto')
-                    imx.cmap.set_over('black')
-                    imx.cmap.set_under('white')
-                    plt.colorbar()
-                    plt.title(f'{self.label} -> {kx_label} environmental category')
-                    plt.show()
-                except:
-                    import pdb; pdb.set_trace()
 
 '''basic fxs'''
 # make canonical gol patterns (sx,e=0) from word inputs
@@ -157,7 +79,7 @@ def mk_gol_pattern(px,domain=False):
         dx[1,:2] = 1
         dx[0,2:] = 1
         dx = np.pad(dx,(1,1))
-    elif px == 'cup':
+    elif px == 'boat':
         dx = expand_domain(np.array([[1,0,0,1],[0,1,1,0]]))
     elif px == 'prybar':
         dx = np.zeros((3,3))
@@ -180,7 +102,7 @@ def mk_gol_pattern(px,domain=False):
         dx = expand_domain(np.ones((2,2)))
         dx[3,2] = 1
         dx = expand_domain(rm_zero_layers(dx))
-    elif px == 'kyte':
+    elif px == 'kite':
         dx = expand_domain(np.ones((2,2)))
         dx[3,3] = 1
         dx = expand_domain(rm_zero_layers(dx))
@@ -210,6 +132,74 @@ def mk_gol_pattern(px,domain=False):
 def array2int(arr):
     xi = np.sum([x<<e for e,x in enumerate(arr.flatten().astype(int))])
     return xi
+
+# fxs that return the number, or the ids of the arrays of a matrix that:
+def sum_is(matrix,x,axis=1,arrays=False):
+    if len(matrix.shape) == 3:
+        if arrays:
+            return matrix[np.where(np.sum(matrix,axis=(1,2))==x)[0]]
+        return np.where(np.sum(matrix,axis=(1,2))==x)[0]
+    if arrays:
+        return matrix[np.where(np.sum(matrix,axis=axis)==x)[0]]
+    return np.where(np.sum(matrix,axis=axis)==x)[0]
+def sum_in_range(matrix,rl,rh,axis=1,arrays=False):
+    if len(matrix.shape)==3:
+        ids = np.array([])
+        for i in range(rl,rh):
+            ids = np.concatenate((ids,sum_is(matrix,i)))
+        if arrays:
+            return matrix[ids.astype(int)]
+        return ids
+    ids = np.where(np.logical_and(np.sum(matrix,axis=axis)>=rl,np.sum(matrix,axis=axis)<rh))[0]
+    if arrays:
+        return matrix[ids]
+    return ids
+def sum_higher(matrix,x,axis=1,arrays=False):
+    if len(matrix.shape)==3:
+        if arrays:
+            return matrix[np.where(np.sum(matrix,axis=(1,2))>=x)[0]]
+        return np.where(np.sum(matrix,axis=(1,2))>=x)[0]
+    if arrays:
+        return matrix[np.where(np.sum(matrix,axis=axis)>=x)[0]]
+    return np.where(np.sum(matrix,axis=axis)>=x)[0]
+def sum_lower(matrix,x,axis=1,arrays=False):
+    if len(matrix.shape)==3:
+        if arrays:
+            return matrix[np.where(np.sum(matrix,axis=(1,2))<x)[0]]
+        return np.where(np.sum(matrix,axis=(1,2))<x)[0]
+    if arrays:
+        return matrix[np.where(np.sum(matrix,axis=axis)<x)[0]]
+    return np.where(np.sum(matrix,axis=axis)<x)[0]
+def sum_nonzero(matrix,axis=1,arrays=False):
+    if len(matrix.shape) == 3:
+        if arrays:
+            return matrix[np.sum(matrix,axis=(1,2)).nonzero()[0]]
+        return np.sum(matrix,axis=(1,2)).nonzero()[0]
+    if arrays:
+        return matrix[np.sum(matrix,axis=axis).nonzero()[0]]
+    return np.sum(matrix,axis=axis).nonzero()[0]
+
+# for matrix/tensor domains
+def sort_by_sum(dxs):
+    return np.array(sorted(list(dxs),key=lambda x:np.sum(x)))
+
+# print number of cases for each n active cells in domains
+def print_ac_cases(doms,rl=0,rh=0,nonzero=True,title=''):
+    nz = 0 if nonzero==True else -1
+    if len(doms.shape) == 2:
+        max_sum = np.max(doms.sum(axis=(1)))
+    else:
+        max_sum = np.max(doms.sum(axis=(1,2)))
+    rl,rh = (rl,rh) if rh<rh else (nz,max_sum)
+    total = 0
+    print()
+    print(title)
+    for ac in range(max_sum+1):
+        ncases = sum_is(doms,ac).shape[0]
+        if ncases > nz:
+            total += ncases
+            print(f'acs: {ac}, cases: {ncases}')
+    print(f'total: {total}\n')
 
 # expand domain size: rows/cols=(bef 0,aft n), else layers
 def expand_domain(sx,layers=1,rows=(0,0),cols=(0,0)):
@@ -262,21 +252,21 @@ def mk_binary_domains(n_cells):
 
 # make all rotation and transposed cases
 def mk_sx_variants(sx):
-        vxs,vars = [],[]
-        # rotations and reflections
-        for ri in range(4):
-            sxr = np.rot90(sx,ri)
-            sxt = np.ascontiguousarray(sxr.T)
-            vars.extend([sxr,sxt])
-        for var in vars:
-            vx_in = False
-            for vxi in vxs:
-                if np.array_equal(var,vxi):
-                    vx_in = True
-                    break
-            if not vx_in:
-                vxs.append(var.astype(int))
-        return vxs
+    vxs,vars = [],[]
+    # rotations and reflections
+    for ri in range(4):
+        sxr = np.rot90(sx,ri)
+        sxt = np.ascontiguousarray(sxr.T)
+        vars.extend([sxr,sxt])
+    for var in vars:
+        vx_in = False
+        for vxi in vxs:
+            if np.array_equal(var,vxi):
+                vx_in = True
+                break
+        if not vx_in:
+            vxs.append(var.astype(int))
+    return vxs
 
 # matrix shaped data; tx: tensor sample for reshaping
 def mk_tensor(mx,tx):
@@ -326,10 +316,6 @@ def mk_px_domains(px,cap=10,save=False):
         return
     return px_env_dxs
 
-# def delta_xy(dx,dy):
-#     dxy = np.abs(dy - dx)
-#     return dxy
-
 # gol transition step (dy: dx expanded for new ON cells)
 def gol_tx(dx):
     dx = expand_domain(dx)
@@ -360,22 +346,29 @@ def mk_px_codomains(px,cap=10,save=True):
 
 # sliding window matching sx (2d) in all dxs (3d)
 # optional pad (for pxs ct would be false in padded borders)
-def is_sx_in_dxs(sx,dxs,pad=False):
-    if pad:
+def is_px_in_dxs(px,dxs,search_borders=False,vxs_ids=False):
+    if search_borders:
         dxs = np.pad(dxs,((0,0),(1,1),(1,1)))
-    sxsum = sx.sum()
-    # sx_nz = np.ones((sx.shape)).astype(int) - sx
     ids = np.zeros(dxs.shape[0]).astype(int)
-    for wi in range(dxs.shape[1]-sx.shape[0]+1):
-        for wj in range(dxs.shape[2]-sx.shape[1]+1):
-            wids = np.zeros(dxs.shape[0])
-            wx = dxs[:,wi:wi+sx.shape[0],wj:wj+sx.shape[1]]
-            # sx is there, domain unknown; only sx in domain
-            wids[np.sum(wx*sx,axis=(1,2))==sxsum] += 0.5
-            wids[wx.sum(axis=(1,2))==sxsum] += 0.5
-            # remove if env is non zero 
-            # wids[np.sum(wx*sx_nz,axis=(1,2))>0] = 0
-            ids += wids.astype(int)            
+    for i in tqdm(range(px.vxs.size)):
+        sx = px.vxs[i].sx
+        mb = px.vxs[i].mb
+        # print('sx')
+        # print(sx)
+        # print('mb')
+        # print(mb)
+        for wi in range(dxs.shape[1] - sx.shape[0]+1):
+            for wj in range(dxs.shape[2] - sx.shape[1]+1):
+                wids = np.zeros(dxs.shape[0])
+                wx = dxs[:, wi:wi+sx.shape[0], wj:wj+sx.shape[1]]
+                # sx is there, memb unknown; memb=0
+                # if wx.shape[1:] != sx.shape:
+                #     import pdb;pdb.set_trace()
+                wids[np.sum(wx*sx,axis=(1,2))==sx.sum()] += 0.5
+                wids[np.sum(wx*mb,axis=(1,2))==0] += 0.5
+                ids += wids.astype(int)
+        if vxs_ids:
+            ids *= px.vxs[i].id
     return ids
     
 # dx/dy ids for px -> py transition
@@ -478,7 +471,7 @@ def mk_tx_map(pxs):
 
 '''plotting, sorting data, etc'''
 
-def get_tx_counts(txmap,print_data=True,table=False,to_csv=False):
+def get_tx_counts(txmap,print_data=True,as_df=False,to_csv=False):
     import pandas as pd
     txs = {}
     for px in txmap.keys():
@@ -499,7 +492,7 @@ def get_tx_counts(txmap,print_data=True,table=False,to_csv=False):
         pd_txs = pd.DataFrame.from_dict(txs).transpose()
         if to_csv:
             pd_txs.to_csv('txs.csv')
-    if table:
+    if as_df:
         return pd_txs
     return txs
 
@@ -547,8 +540,9 @@ def plot_patterns(ufs,rows=3,cols=4,size=(9,6)):
     plt.tight_layout
     plt.show()
 
+
 '''save, load, etc'''
-def save_as(file,name,fdir='gol_exps_data',ext='gol_info'):
+def save_as(file,name, fdir='gol_exps_data',ext='gol_info'):
     import pickle
     import os
     if not ext:
@@ -569,7 +563,6 @@ def save_as(file,name,fdir='gol_exps_data',ext='gol_info'):
 
 def load_data(filename='', ext='gol_info',dirname='gol_exps_data'):
     import pickle
-    import os
     dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
     if filename:
         if ext:
@@ -603,15 +596,25 @@ def load_data(filename='', ext='gol_info',dirname='gol_exps_data'):
 # check, domain, codomain, txs data
 # assuming constrained search (ct_) for txs
 def check_px_data(px, cap=False, ext='gol_info',dirname='gol_exps_data'):
-    import os
     cap = cap if cap else f'no_cap={px.env.sum()}'
     dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
     domain_fname = f'gol_domains_cap={cap}_{px.label}.{ext}'
     codomain_fname = f'gol_tx_domains_cap={cap}_{px.label}.{ext}'
-    txs_fname = f'gol_px_txs_ct_cap={cap}_{px.label}.{ext}'
+    txs_fname = f'gol_px_txs_cap={cap}_{px.label}.{ext}'
     are_files = [os.path.isfile(os.path.join(dirpath,fname)) for fname in [domain_fname,codomain_fname,txs_fname]]
     return are_files
 
+# just shorter, assuming filepath and no_cap files
+def load_dxs(px):
+    return load_data(filename=f'gol_domains_cap=no_cap={px.env.sum()}_{px.label}')
+def load_codxs(px):
+    return load_data(filename=f'gol_tx_domains_cap=no_cap={px.env.sum()}_{px.label}')
+def load_txs(px):
+    return load_data(filename=f'gol_px_txs_cap=no_cap={px.env.sum()}_{px.label}')
+
+    
+
+    
 
 '''run some stuff'''
 
@@ -628,49 +631,17 @@ zz = GolPattern('zigzag')
 bar = GolPattern('bar')
 baby = GolPattern('baby')
 flag = GolPattern('flag')
-kyte = GolPattern('kyte')
+kite = GolPattern('kite')
 worm = GolPattern('worm')
 # new, after alife24
 tub = GolPattern('tub')
 helix = GolPattern('helix')
-cup = GolPattern('cup')
-# 128 variants, 24 env cells & not so common
-# pbar = GolPattern('prybar')
+boat = GolPattern('boat')
+# pbar = GolPattern('prybar')                       # 128 variants and env=24
 # these have 2048 variants each
 # ffly = GolPattern('firefly')
 # ufo = GolPattern('ufo')
 
 pxs = [blinker,pb0,block,gla,glb,                   # basic
-       ttz,ttt,ttl,zz,bar,baby,flag,kyte,worm,      # for alife24
-       tub,helix,cup]                          # after alife24
-
-#print_pxs_ncases(pxs)
-
-# 1) make domains (dxs)
-# for px in pxs:
-#     mk_px_domains(px,save=True)
-
-# 2) make co-domains (dys) (GoL txs)
-# for px in pxs:
-#     fname = f'gol_domains_cap=10_{px.label}'
-#     dxs = load_data(filename=fname)
-#     dys = multi_gol_tx(dxs)
-#     fname = f'gol_tx_domains_cap=10_{px.label}'
-#     save_as(dys,name=fname)
-
-# 3) get txs (dxs -> dys) data (labels, ids & n txs)
-# for px in pxs:
-#     find_pxpy_txs(px,pxs_cp)
-
-# 4) make txs map, dict for graph-like data
-# (change txs=True in GolPattern class)
-# omap = mk_omap(pxs)
-# fname = f'gol_omap_cap=10'
-# save_as(omap, name=fname)
-
-# dxs = load_data(filename=f'gol_tx_domains_cap=10_{px.label}')
-# omap = load_data(filename='gol_omap_cap=10')
-
-# 5) make delta(sx,sy) for info comparisons & put all together
-# mk_delta_map(pxs,omap)
-# dmap = load_data(filename='gol_delta_map_cap=10')
+       ttz,ttt,ttl,zz,bar,baby,flag,kite,worm,      # alife24
+       tub,helix,boat]                              # wivace

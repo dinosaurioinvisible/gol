@@ -112,14 +112,22 @@ def rm_non_env(dxs,sx,ids=False,print_data=True):
     return dxs_ne
 
 # sxys: domains in matrix form, sx: in matrix form
-def mk_yz_decay(sxys,sx,expanded=True,ids=False,print_data=True):
-    if sx.flatten().shape[0] < sxys.shape[1]:
+def mk_yz_decay(sxys,sx,expanded=True,ids=False,tensor=False,print_data=True):
+    # if tensor
+    if len(sxys.shape) == 3:
+        tensor = True
+        sxys = sxys.reshape(sxys.shape[0],sxys.shape[1]*sxys.shape[2])
+    # if sx instead of dx
+    if sxys.shape[1] > sx.flatten().shape[0]:
         sx = expand_domain(sx)
+    # avoid unnecessary comps
     if sum_borders(sx) == 0:
         expanded = False
     yz = multi_gol_step(sxys,sx,expanded=expanded)
-    yz_ids = sum_higher(yz,2)
+    yz_ids = sum_higher(yz,3)
     sxys = sxys[yz_ids]
+    if tensor:
+        sxys = mk_dxs_tensor(sxys,sx)
     if print_data:
         print_ac_cases(sxys,title='after yz decay:')
     if ids:
@@ -129,18 +137,24 @@ def mk_yz_decay(sxys,sx,expanded=True,ids=False,print_data=True):
 # dxs: matrix of gol domain sts arrays 
 # psx: primary pattern/structure determining ct with env=0
 def apply_ct(dxs,psx,rm_zeros=True,ct_ids=False,non_ct_ids=False,print_data=True):
+    # if tensor
+    if len(dxs.shape) == 3:
+        tensor = True
+        dxs = dxs.reshape(dxs.shape[0],dxs.shape[1]*dxs.shape[2])
+    # if sx instead of dx
     if dxs.shape[1] > psx.flatten().shape[0]:
         psx = expand_domain(psx)
-    psx = psx.flatten()
-    ids = sum_nonzero(dxs*psx)
+    ids = sum_nonzero(dxs*psx.flatten())
     if print_data:
         print_ac_cases(dxs[ids],title='after CT:')
+    if tensor:
+        dxs = mk_dxs_tensor(dxs,psx)
     if ct_ids:
         if rm_zeros:
             return dxs[ids],ids
         return dxs,ids
     if non_ct_ids:
-        zero_ids = sum_is(dxs*psx,0)
+        zero_ids = sum_is(dxs*psx.flatten(),0)
         if rm_zeros:
             return dxs[ids],zero_ids
         return dxs,zero_ids
@@ -255,8 +269,13 @@ def rm_env_cells_dv2(dxs,px,ids=False,print_data=True):
 # dxs: domains in matrix from
 # px: sx domain for reshaping
 def rm_non_sx_cells(dxs,px,ids=False):
-    dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
-    dxs = mk_dxs_tensor(dxs,expand_domain(px))
+    if len(dxs.shape) == 2:
+        tensor = False
+        dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
+        dxs = mk_dxs_tensor(dxs,expand_domain(px))
+    else:
+        tensor = True
+        dxs = np.pad(dxs,((0,0),(1,1),(1,1)))
     dxs_ft = dxs*1
     # c1 and c2 non sx cases
     c1 = expand_domain(np.ones((1,1)))
@@ -277,11 +296,11 @@ def rm_non_sx_cells(dxs,px,ids=False):
                 if idsx.shape[0]>0:
                     # pdb.set_trace()
                     dxs_ft[idsx,wi:wi+vx.shape[0],wj:wj+vx.shape[1]] = 0
-                    # dxs_ft[idsx,wi:min(dxs.shape[1]-1,wi+vx.shape[0]),min(dxs.shape[2]-1,wj+vx.shape[1])] = 0
-                    
+                    # dxs_ft[idsx,wi:min(dxs.shape[1]-1,wi+vx.shape[0]),min(dxs.shape[2]-1,wj+vx.shape[1])] = 0           
     dxs_ft = dxs_ft[:,1:-1,1:-1]
-    dxs_ft = dxs_ft.reshape(dxs_ft.shape[0],px.flatten().shape[0])
-    nz_ids = sum_higher(dxs_ft,2)
+    if not tensor:
+        dxs_ft = dxs_ft.reshape(dxs_ft.shape[0],px.flatten().shape[0])
+    nz_ids = sum_higher(dxs_ft,3)
     print_ac_cases(dxs_ft[nz_ids],title='after rm non sx cells:')
     if ids:
         return dxs_ft[nz_ids],nz_ids
@@ -294,9 +313,11 @@ Classification fxs:
 '''
 
 # final version, faster and more precise
-def mk_symsets_large_dxs(dxs,sx=[],membrane=False,ids=False,print_data=True):
+def mk_symsets_large_dxs(dxs,sx=[],membrane=False,search_borders=False,ids=False,print_data=True):
     if len(dxs.shape)==2:
         dxs = mk_dxs_tensor(dxs,sx)
+    else:
+        sx = dxs[0]
     dxs = sort_by_sum(dxs)
     dxs = center_tensor_sxs(dxs)
     # canon/type, if instance, number of instances
@@ -306,7 +327,7 @@ def mk_symsets_large_dxs(dxs,sx=[],membrane=False,ids=False,print_data=True):
         symset_ids = {}
     for di in tqdm(range(dxs.shape[0])):
         if reps[di] == 0:
-            dx_ids = is_sx_in_dxs(dxs[di],dxs,sx,membrane=membrane)
+            dx_ids = is_sx_in_dxs(dxs[di],dxs,sx,membrane=membrane,search_borders=search_borders)
             symset_cases[di] = [di,dx_ids.shape[0]]
             reps[dx_ids] = 1
             if ids:

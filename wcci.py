@@ -41,7 +41,7 @@ gliderB,gliderB_dx = mk_gol_pattern('gliderB',domain=True)
 flag,flag_dx = mk_gol_pattern('flag',domain=True)
 # flag_dx = expand_domain(flag)
 # kyte
-kite,kite_dx = mk_gol_pattern('kite',domain=True)
+kyte,kyte_dx = mk_gol_pattern('kyte',domain=True)
 # worm
 worm,worm_dx = mk_gol_pattern('worm',domain=True)
 
@@ -166,8 +166,8 @@ for ufi in ufs:
 # ufsp = [pb0_uf,bo_uf,tl_uf,tt_uf,gla_uf,zz_uf,bar_uf,tz_uf,bb_uf,flag_uf,kite_uf,worm_uf]
 # plot_patterns(ufsp)
 # import pdb;pdb.set_trace()
-mk_env_distinctions(zigzag_dx,zz_xs,zz_ids,sx_name='zigzag',mk_plots=True)
-mk_env_distinctions(baby_dx,bb_xs,bb_ids,sx_name='baby',mk_plots=True)
+# mk_env_distinctions(zigzag_dx,zz_xs,zz_ids,sx_name='zigzag',mk_plots=True)
+# mk_env_distinctions(baby_dx,bb_xs,bb_ids,sx_name='baby',mk_plots=True)
 
 # mk_env_plots(blinker_dx,bk_xs,bk_ids)
 # mk_env_plots(pb0_dx,pb0_xs,pb0_ids)

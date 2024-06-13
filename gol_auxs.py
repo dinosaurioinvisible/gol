@@ -132,7 +132,7 @@ def mk_gol_pattern(px,domain=False,variants=False):
         dx[3,2] = 1
         dx = expand_domain(rm_zero_layers(dx))
         # return dx
-    elif px == 'kyte':
+    elif px == 'kite':
         dx = expand_domain(np.ones((2,2)))
         dx[3,3] = 1
         dx = expand_domain(rm_zero_layers(dx))
@@ -259,11 +259,11 @@ def sum_in_range(matrix,rl,rh,axis=1,arrays=False):
 def sum_higher(matrix,x,axis=1,arrays=False):
     if len(matrix.shape)==3:
         if arrays:
-            return matrix[np.where(np.sum(matrix,axis=(1,2))>x)[0]]
-        return np.where(np.sum(matrix,axis=(1,2))>x)[0]
+            return matrix[np.where(np.sum(matrix,axis=(1,2))>=x)[0]]
+        return np.where(np.sum(matrix,axis=(1,2))>=x)[0]
     if arrays:
-        return matrix[np.where(np.sum(matrix,axis=axis)>x)[0]]
-    return np.where(np.sum(matrix,axis=axis)>x)[0]
+        return matrix[np.where(np.sum(matrix,axis=axis)>=x)[0]]
+    return np.where(np.sum(matrix,axis=axis)>=x)[0]
 def sum_lower(matrix,x,axis=1,arrays=False):
     if len(matrix.shape)==3:
         if arrays:
@@ -404,22 +404,40 @@ def check_act_ct(dxs,sx,ids=True):
         return dxs[nz_ids],nz_ids
     return dxs[nz_ids]
 
+# old version
+# def print_ac_cases(doms,rl=0,rh=0,nonzero=True,title=''):
+#     dxs = doms*1
+#     # for tensors
+#     if len(dxs.shape) == 3:
+#         a,b,c = dxs.shape
+#         dxs = dxs.reshape(a,b*c)
+#     rl,rh = (rl,rh) if rh<rh else (0,dxs.shape[1])
+#     nz = 0 if nonzero==True else -1
+#     ids = [(ac,len(sum_is(dxs,ac))) for ac in range(rl,rh+1) if sum_is(dxs,ac).shape[0]>nz]
+#     print()
+#     print(title)
+#     for ac,ncases in ids:
+#         print('acs: {}, cases: {}'.format(ac,ncases))
+#     total = sum([nc for ac,nc in ids])
+#     print('total: {}'.format(total))
+#     print()
+# print number of cases for each n active cells in domains
 def print_ac_cases(doms,rl=0,rh=0,nonzero=True,title=''):
-    dxs = doms*1
-    # for tensors
-    if len(dxs.shape) == 3:
-        a,b,c = dxs.shape
-        dxs = dxs.reshape(a,b*c)
-    rl,rh = (rl,rh) if rh<rh else (0,dxs.shape[1])
     nz = 0 if nonzero==True else -1
-    ids = [(ac,len(sum_is(dxs,ac))) for ac in range(rl,rh+1) if sum_is(dxs,ac).shape[0]>nz]
+    if len(doms.shape) == 2:
+        max_sum = np.max(doms.sum(axis=(1))).astype(int)
+    else:
+        max_sum = np.max(doms.sum(axis=(1,2))).astype(int)
+    rl,rh = (rl,rh) if rh<rh else (nz,max_sum)
+    total = 0
     print()
     print(title)
-    for ac,ncases in ids:
-        print('acs: {}, cases: {}'.format(ac,ncases))
-    total = sum([nc for ac,nc in ids])
-    print('total: {}'.format(total))
-    print()
+    for ac in range(max_sum+1):
+        ncases = sum_is(doms,ac).shape[0]
+        if ncases > nz:
+            total += ncases
+            print(f'acs: {ac}, cases: {ncases}')
+    print(f'total: {total}\n')
 
 # remove isolated cells
 # basically same as gol rule, but nb==0 -> cell=0
@@ -546,10 +564,14 @@ def is_sx_in_dx(sx,dx,mk_variants=False):
 # same but for the whole array of domains simultaneously
 # dxs: matrix of domain-arrays, sx in matrix form
 # px has to have the dimensions for reshaping dxs
-# moore nb = True: symsets, if False: minsets
-def is_sx_in_dxs(sx,dxs,px,membrane=False,moore_nb=True,tensor=False,print_data=False):
-    if moore_nb and px.flatten().shape[0] < 37:
-        dxs = np.pad(dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1]),((0,0),(1,1),(1,1)))
+# membrane = True: symsets, if False: minsets
+# search_borders: to include search where maybe borders=membranes
+def is_sx_in_dxs(sx,dxs,px,membrane=False,search_borders=False,tensor=False,print_data=False):
+    # if membrane and px.flatten().shape[0] < 37:
+    if membrane and search_borders:
+        if len(dxs.shape) == 2:
+            dxs = dxs.reshape(dxs.shape[0],px.shape[0],px.shape[1])
+        dxs = np.pad(dxs,((0,0),(1,1),(1,1)))
         px = expand_domain(px)
     if len(dxs.shape)==3:
         dxs = dxs.reshape(dxs.shape[0],px.flatten().shape[0])
@@ -558,7 +580,7 @@ def is_sx_in_dxs(sx,dxs,px,membrane=False,moore_nb=True,tensor=False,print_data=
         sx = expand_domain(rm_zero_layers(sx))
         vxs = mk_sx_variants(sx,mk_non_env=False)
     else:
-        vxs = mk_min_sx_variants(sx,moore_nb=moore_nb)
+        vxs = mk_min_sx_variants(sx,moore_nb=False)
     for vx in vxs:
         vx_nz_ids = np.zeros(dxs.shape[0]).astype(int)
         for wi in range(px.shape[0]-vx.shape[0]+1):
@@ -568,7 +590,7 @@ def is_sx_in_dxs(sx,dxs,px,membrane=False,moore_nb=True,tensor=False,print_data=
                 # vx is there, env is unknown
                 vx_nz_ids[sum_is(dxs*wx.flatten(),np.sum(vx))] = 1
                 # remove if env/memb is non zero
-                if moore_nb:
+                if membrane:
                     vx_nz_ids[sum_nonzero(dxs*mk_moore_nb(wx).flatten())] = 0
                 nz_ids += vx_nz_ids
     nz_ids = nz_ids.nonzero()[0]
@@ -576,8 +598,8 @@ def is_sx_in_dxs(sx,dxs,px,membrane=False,moore_nb=True,tensor=False,print_data=
         print_ac_cases(dxs,title='sx in domains:')
     if tensor:
         dxs = dxs[nz_ids]
-        dxs = mk_dxs_tensor(dxs,sx)
-        if moore_nb:
+        dxs = mk_dxs_tensor(dxs,px)
+        if membrane and px.flatten() < 37:
             dxs = dxs[:,1:-1,1:-1]
         return dxs,nz_ids
     return nz_ids
@@ -655,59 +677,59 @@ def make_dms(count,whole=False):
     return dmx,dmy
 
 '''save, load, etc'''
-def save_as(file,name,ext=''):
-    import pickle
-    import os
-    if not ext:
-        fname = name if '.' in name else '{}.{}'.format(name,'unk')
-    else:
-        fname = '{}.{}'.format(name,ext)
-    while os.path.isfile(fname):
-        i = 1
-        if len(fname.split('.')) > 2:
-            name = ''.join(fname.split('.')[:-1])
-            ext = fname.split('.')[-1]
-        else:
-            name,ext = fname.split('.')
-        try:
-            fi = int(name[-1])+1
-            fname = '{}{}.{}'.format(fname[:-1],fi,ext)
-        except:
-            fi = i+1
-            fname = '{}{}.{}'.format(fname,i,ext)
-    with open(fname,'wb') as f:
-        pickle.dump(file,f)
-    print('\nsaved as: {}\n'.format(fname))
+# def save_as(file,name,ext=''):
+#     import pickle
+#     import os
+#     if not ext:
+#         fname = name if '.' in name else '{}.{}'.format(name,'unk')
+#     else:
+#         fname = '{}.{}'.format(name,ext)
+#     while os.path.isfile(fname):
+#         i = 1
+#         if len(fname.split('.')) > 2:
+#             name = ''.join(fname.split('.')[:-1])
+#             ext = fname.split('.')[-1]
+#         else:
+#             name,ext = fname.split('.')
+#         try:
+#             fi = int(name[-1])+1
+#             fname = '{}{}.{}'.format(fname[:-1],fi,ext)
+#         except:
+#             fi = i+1
+#             fname = '{}{}.{}'.format(fname,i,ext)
+#     with open(fname,'wb') as f:
+#         pickle.dump(file,f)
+#     print('\nsaved as: {}\n'.format(fname))
 
-def load_data(filename='',ext='',dirname='gol_exps_data'):
-    import pickle
-    import os
-    dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
-    if filename:
-        if ext:
-            filename += f'.{ext}'
-        fpath = os.path.join(dirpath,filename)
-        try:
-            with open(fpath,'rb') as fname:
-                fdata = pickle.load(fname)
-                return fdata
-        except:
-            print('\n{} not as path {}\n'.format(filename,fpath))
-    fnames = [i for i in os.listdir(dirpath) if '.{}'.format(ext) in i]
-    while True:
-        print()
-        for ei,fi in enumerate(fnames):
-            print('{} - {}'.format(ei+1,fi))
-        print()
-        x = input('\nfile: _ ')
-        if x == 'q' or x == 'quit':
-            return
-        try:
-            with open(fnames[int(x)-1],'rb') as fname:
-                fdata = pickle.load(fname)
-                return fdata
-        except:
-            print('\ninvalid input? (q/quit to quit)\n')
+# def load_data(filename='',ext='',dirname='gol_exps_data'):
+#     import pickle
+#     import os
+#     dirpath = os.path.abspath(os.path.join(os.getcwd(),'..',dirname)) if dirname else os.getcwd()
+#     if filename:
+#         if ext:
+#             filename += f'.{ext}'
+#         fpath = os.path.join(dirpath,filename)
+#         try:
+#             with open(fpath,'rb') as fname:
+#                 fdata = pickle.load(fname)
+#                 return fdata
+#         except:
+#             print('\n{} not as path {}\n'.format(filename,fpath))
+#     fnames = [i for i in os.listdir(dirpath) if '.{}'.format(ext) in i]
+#     while True:
+#         print()
+#         for ei,fi in enumerate(fnames):
+#             print('{} - {}'.format(ei+1,fi))
+#         print()
+#         x = input('\nfile: _ ')
+#         if x == 'q' or x == 'quit':
+#             return
+#         try:
+#             with open(fnames[int(x)-1],'rb') as fname:
+#                 fdata = pickle.load(fname)
+#                 return fdata
+#         except:
+#             print('\ninvalid input? (q/quit to quit)\n')
 
 '''
 old fxs

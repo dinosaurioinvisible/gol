@@ -116,3 +116,69 @@
 #     fname = f'gol_delta_map_cap=10'
 #     save_as(dmap, name=fname)
 #     # return dmap
+
+
+
+# def get_txs_data(self):
+    #     fname = f'gol_px_txs_ct_{self.label}'
+    #     self.txs = load_data(filename=fname)
+    #     # clean txs info: CT in dy?
+    #     self.txs_info()
+    #     self.mk_env_sets()
+        
+    # def txs_info(self):
+    #     print('{}'.format(f'\n{self.label} ->' if len(self.txs.keys())>0 else '\nno txs info\n'))
+    #     self.ntxs = 0
+    #     for key in self.txs.keys():
+    #         self.ntxs += self.txs[key].shape[0]
+    #         print(f'{key}: {self.txs[key].shape[0]}')
+    #     print(f'{self.ntxs} txs known')
+    #     if self.all_txs:
+    #         print(f'{self.all_txs - self.ntxs}/{self.all_txs} txs unknown')
+
+    # def mk_env_sets(self):
+    #     dxs_fname = f'gol_domains_cap=10_{self.label}'
+    #     # dys_fname = f'gol_tx_domains_cap=10_{px.label}'
+    #     dxs = load_data(filename=dxs_fname)
+    #     # dys = load_data(filename=dys_fname)
+    #     self.all_txs = dxs.shape[0]
+    #     for key in self.txs.keys():
+    #         dxs_sums = np.zeros((self.dx.shape)).astype(int)
+    #         for dx_id in self.txs[key]:
+    #             dxs_sums += dxs[dx_id]
+    #         dxs_sums *= np.abs(self.dx - 1).astype(int)
+    #         self.env_sets[key] = dxs_sums/dxs_sums.sum()
+
+#  def plot_domains(self):
+#         mk_plots = True
+#         while mk_plots:
+#             print(f'\n{self.label} ->')
+#             for ei,key in enumerate(self.env_sets.keys()):
+#                 print(f'[{ei}] -> {key}, ncases = {self.txs[key].shape[0]}')
+#             kx = input('\n? _ ')
+#             if kx == 'q' or kx == 'quit':
+#                 mk_plots = False
+#             else:
+#                 try:
+#                     # info
+#                     # plots
+#                     kx_label = list(self.env_sets.keys())[int(kx)]
+#                     domain = self.env_sets[kx_label]
+#                     # cmap = mpl.cm.get_cmap("jet").copy()
+#                     non_dx = self.dx + self.mb + self.env - 1
+#                     domain += non_dx
+#                     domain += self.mb * -1
+#                     domain += self.dx * 2
+#                     ex_dx = self.env * domain
+#                     imx = plt.imshow(domain, vmin=0, vmax=np.max(ex_dx), cmap='magma', aspect='auto')
+#                     imx.cmap.set_over('black')
+#                     imx.cmap.set_under('white')
+#                     plt.colorbar()
+#                     plt.title(f'{self.label} -> {kx_label} environmental category')
+#                     plt.show()
+#                 except:
+#                     import pdb; pdb.set_trace()
+
+# def delta_xy(dx,dy):
+#     dxy = np.abs(dy - dx)
+#     return dxy
