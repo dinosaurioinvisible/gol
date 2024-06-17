@@ -24,13 +24,17 @@ agency
 # txmap = load_data(filename='gol_txmap_no_cap')
 # txs = get_tx_counts(txmap,as_df=False,to_csv=True)
 
+ppxs = [blinker,pb0,block,gla,glb,flag,ttt,ttl,worm,boat]
+plot_pxs(ppxs, title='GoL patterns')
+
+
 # just to double check
 
-dk = {}
-bk_dxys = load_codxs(blinker)
-for py in [glb,ttz,flag,kite]:
-    dk[py.label] = is_px_in_dxs(py,bk_dxys)
-    print(f'{py.label} cases = {len(dk[py.label])}')
+# dk = {}
+# bk_dxys = load_codxs(blinker)
+# for py in pxs:
+#     dk[py.label] = is_px_in_dxs(py,bk_dxys)
+#     print(f'{py.label} cases = {dk[py.label].nonzero()[0].shape[0]}')
 
 
 # search for same envs within different env sets

@@ -41,6 +41,7 @@ def mk_gol_pattern(px,domain=False):
     if px == 'blinker':
         dx = np.zeros((5,3))
         dx[1:-1,1] = 1
+        # dx = dx.T
     elif px == 'pb0':
         dx = np.ones((2,2))
         dx[0,1] = 0
@@ -344,6 +345,7 @@ def mk_px_codomains(px,cap=10,save=True):
         return
     return dxys
 
+# search px in all domain, no ct restrictions
 # sliding window matching sx (2d) in all dxs (3d)
 # optional pad (for pxs ct would be false in padded borders)
 def is_px_in_dxs(px,dxs,search_borders=False,vxs_ids=False):
@@ -353,23 +355,18 @@ def is_px_in_dxs(px,dxs,search_borders=False,vxs_ids=False):
     for i in tqdm(range(px.vxs.size)):
         sx = px.vxs[i].sx
         mb = px.vxs[i].mb
-        # print('sx')
-        # print(sx)
-        # print('mb')
-        # print(mb)
         for wi in range(dxs.shape[1] - sx.shape[0]+1):
             for wj in range(dxs.shape[2] - sx.shape[1]+1):
                 wids = np.zeros(dxs.shape[0])
                 wx = dxs[:, wi:wi+sx.shape[0], wj:wj+sx.shape[1]]
                 # sx is there, memb unknown; memb=0
-                # if wx.shape[1:] != sx.shape:
-                #     import pdb;pdb.set_trace()
                 wids[np.sum(wx*sx,axis=(1,2))==sx.sum()] += 0.5
                 wids[np.sum(wx*mb,axis=(1,2))==0] += 0.5
                 ids += wids.astype(int)
         if vxs_ids:
             ids *= px.vxs[i].id
-    return ids
+            return ids
+    return ids.nonzero()[0]
     
 # dx/dy ids for px -> py transition
 # search (py) patterns in codomains (dxys) (i.e., find transitions)
@@ -520,23 +517,34 @@ def plot_px(px, title='', colors=(1, 9, 2, 0)):
     plt.show()
     return dx
 
-def plot_pxs(pxs):
-    fig,axs = plt.subplots(nrows=rows,
-                           ncols=cols,
-                           figsize=size)
-
-def plot_patterns(ufs,rows=3,cols=4,size=(9,6)):
-    fig,axs = plt.subplots(nrows=rows,ncols=cols,
-                           figsize=size)
-                           # subplot_kw={'xticks':[],'yticks':[]})
+def plot_pxs(pxs,rows=0,cols=0,horizontal=False,
+                                size=(0,0),
+                                title='', 
+                                colors=(1, 9, 2, 0)):
+    if horizontal:
+        rows = 1 if rows == 0 else rows
+        cols = len(pxs) if cols == 0 else cols
+    elif rows+cols == 0:
+        cols = int(len(pxs)/2)
+        rows = 2
+    if sum(size) > 0:
+        fig,axs = plt.subplots(nrows=rows,ncols=cols,
+                                        figsize=size)
+    else:
+        fig,axs = plt.subplots(nrows=rows,ncols=cols)
+    sys_color, memb_color, env_color, out_color = colors
     # plt.axis('off')
-    for ax,uf in zip(axs.flat,ufs):
-        sx = uf[0]['sx']
-        dx = sx + mk_moore_nb(sx)*2
+    for ax,px in zip(axs.flat,pxs):
+        if px.dx.shape[0] > px.dx.shape[1]:
+            dx = px.dx.T*sys_color + px.mb.T*memb_color + px.env.T*env_color
+        else:
+            dx = px.dx*sys_color + px.mb*memb_color + px.env*env_color
         ax.imshow(palette[dx.astype(int)])#,cmap='binary')
         # ax.grid(visible=True)
-        ax.set_title(uf[0]['label'])
+        ax.set_title(px.label)
         ax.axis('off')
+    if title:
+        plt.suptitle(title)
     plt.tight_layout
     plt.show()
 
