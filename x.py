@@ -182,3 +182,12 @@
 # def delta_xy(dx,dy):
 #     dxy = np.abs(dy - dx)
 #     return dxy
+
+
+# stop if transition already occurred (remove tx & st)
+        # starts from ti to account for txs=0 at first tstep
+        # if tx_stop and is_sx_in_dxs(grid_txs[ti],grid_txs[:ti]):
+        #     print(f'\nfound tx recurrency at t-1={ti-1} -> t={ti}:\n\n{grid[ti-1]}\n--->\n{grid[ti]}\n')
+        #     grid[ti] = 0
+        #     grid_txs[ti-1] = 0
+        #     return px,grid,grid_txs

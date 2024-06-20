@@ -14,9 +14,8 @@ class GolPattern:
         self.env = mk_moore_nb(self.dx + self.mb)      # environment
         self.id = array2int(self.sx)
         self.mk_rec_variants()
-        # self.txs = {}
-        # self.all_txs, self.ntxs = 0, 0
-        # self.env_sets = {}
+        # spiking 
+        self.txs, self.ons, self.offs, self.ev, self.e = None,None,None,None,0
 
     def mk_rec_variants(self):
         vxs = mk_sx_variants(self.sx)
@@ -239,6 +238,14 @@ def mk_moore_nb(sxr):
     moore_nb = moore_nb * np.abs(sxr-1)
     return np.where(moore_nb>0,1,0)
 
+# remove surrounding zero layers
+def rm_zero_layers(dx,active_only=False):
+    vs,hs = dx.nonzero()
+    sx = dx[max(0,vs.min()-1):vs.max()+2,max(0,hs.min()-1):hs.max()+2]
+    if active_only:
+        return sx[1:-1,1:-1]
+    return sx
+
 # a tensor for all binary combinations
 # n_cells are all the env cells in some domain
 def mk_binary_domains(n_cells):
@@ -318,9 +325,11 @@ def mk_px_domains(px,cap=10,save=False):
     return px_env_dxs
 
 # gol transition step (dy: dx expanded for new ON cells)
-def gol_tx(dx):
-    dx = expand_domain(dx)
-    dy = np.zeros(dx.shape).astype(int)
+def gol_tx(dx,expand_dy=True):
+    dx = expand_domain(dx) if expand_dy else dx.copy()
+    # if expand_dy:
+    #     dx = expand_domain(dx)
+    dy = np.zeros(dx.shape).astype(int) 
     for ei in range(dx.shape[0]):
         for ej in range(dx.shape[1]):
             nb = dx[max(0,ei-1):ei+2,max(0,ej-1):ej+2].sum() - dx[ei,ej]
@@ -345,6 +354,31 @@ def mk_px_codomains(px,cap=10,save=True):
         return
     return dxys
 
+# search fro patterns in domain(s)
+def is_sx_in_dx(sx,dx,search_borders=False):
+    if sx.flatten().shape[0] > dx.flatten().shape[0]:
+        return False
+    if search_borders:
+        dx = expand_domain(dx)
+    for wi in range(dx.shape[0] - sx.shape[0]+1):
+        for wj in range(dx.shape[1] - sx.shape[1]+1):
+            if np.array_equal(dx[wi:wi+sx.shape[0],wj:wj+sx.shape[1]],sx):
+                return True
+    return False
+def is_sx_in_dxs(sx,dxs,search_borders=False):
+    if len(dxs.shape) == 2:
+        return is_sx_in_dx(sx,dxs,search_borders=search_borders)
+    if search_borders:
+        dxs = np.pad(dxs,((0,0),(1,1),(1,1)))
+    for wi in range(dxs.shape[1] - sx.shape[0]+1):
+        for wj in range(dxs.shape[2] - sx.shape[1]+1):
+            ids = np.zeros(dxs.shape[0])
+            wx = dxs[:,wi:wi+sx.shape[0],wj:wj+sx.shape[1]]
+            ids[np.sum(wx*sx,axis=(1,2))==sx.sum()] += 0.5
+            ids[np.sum(wx*mk_moore_nb(sx),axis=(1,2))==0] += 0.5
+            if ids.astype(int).sum() > 0:
+                return True
+    return False
 # search px in all domain, no ct restrictions
 # sliding window matching sx (2d) in all dxs (3d)
 # optional pad (for pxs ct would be false in padded borders)
@@ -397,10 +431,6 @@ def find_pxpy_txs(px,pxs, cap=False):
                 for wj in range(dxy_j-sy_j+1):
                     wx = dxys[:,wi:wi+sy.shape[0],wj:wj+sy.shape[1]]
                     # sx is there, memb is there (sum memb cells = 0)
-                    # wids = np.zeros(dxys.shape[0])
-                    # wids[np.sum(wx*sy,axis=(1,2))==sy.sum()] += 0.5
-                    # wids[wx.sum(axis=(1,2))==sy.sum] += 0.5
-                    # ids += wids.astype(int)
                     wids = np.zeros(dxy.shape[0])
                     wids[np.sum(wx*sy,axis=(1,2))==sy.sum()] += 0.5
                     wids[np.sum(wx*mb,axis=(1,2))==0] += 0.5
