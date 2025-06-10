@@ -1,3 +1,4 @@
+from gol_info_utils import load_data
 from gol_fxs import *
 
 # 1) how many blinkers survive
@@ -40,8 +41,8 @@ gliderB,gliderB_dx = mk_gol_pattern('gliderB',domain=True)
 # flag
 flag,flag_dx = mk_gol_pattern('flag',domain=True)
 # flag_dx = expand_domain(flag)
-# kyte
-kyte,kyte_dx = mk_gol_pattern('kyte',domain=True)
+# kite
+kite,kite_dx = mk_gol_pattern('kite',domain=True)
 # worm
 worm,worm_dx = mk_gol_pattern('worm',domain=True)
 

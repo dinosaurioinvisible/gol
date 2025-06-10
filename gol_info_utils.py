@@ -128,6 +128,24 @@ def mk_gol_pattern(px,domain=False):
         return dx,expand_domain(dx)
     return dx
 
+# to combine patterns
+def append_vxs(label,px,py):
+    from copy import deepcopy
+    new_px = deepcopy(px)
+    new_px.label = label
+    n_vxs = px.vxs.shape[0] + py.vxs.shape[0]
+    vxs = np.rec.array(None, dtype=[('sx',np.ndarray),
+                                    ('mb',np.ndarray),
+                                     ('env',np.ndarray),
+                                     ('id',np.uint64)],
+                                     shape = n_vxs)
+    for ei,vxi in enumerate(px.vxs):
+        vxs[ei] = vxi
+    for ei,vxi in enumerate(py.vxs):
+        vxs[ei+px.vxs.shape[0]] = vxi
+    new_px.vxs = vxs
+    return new_px
+
 # array to int
 def array2int(arr):
     xi = np.sum([x<<e for e,x in enumerate(arr.flatten().astype(int))])
@@ -291,6 +309,9 @@ def print_pxs_ncases(pxs):
         px = pxs[pxi[0]]
         print(f'{px.label}:{" "*(7-len(px.label))} variants={pxi[1]}, \tsx_cells={px.sx.sum()}, memb={px.mb.sum()}, env={px.env.sum()}')
 
+def backmap_ids(ids,new_ids):
+    return ids[new_ids]
+
 def entropy_fx(dist):
     h, hb = 0, 0
     for i in dist:
@@ -336,10 +357,13 @@ def gol_tx(dx,expand_dy=True):
             # cell = 0 or 1 and nb=3, or cell=1 and nb=2
             dy[ei,ej] = 1 if nb==3 or dx[ei,ej]*nb==2 else 0
     return dy
-def multi_gol_tx(dxs):
-    dys = np.zeros((dxs.shape[0],dxs.shape[1]+2,dxs.shape[2]+2)).astype(int)
+def multi_gol_tx(dxs, expand_dy=True):
+    if expand_dy:
+        dys = np.zeros((dxs.shape[0],dxs.shape[1]+2,dxs.shape[2]+2)).astype(int)
+    else:
+        dys = np.zeros((dxs.shape[0],dxs.shape[1],dxs.shape[2])).astype(int)
     for di in tqdm(range(dxs.shape[0])):
-        dys[di] = gol_tx(dxs[di])
+        dys[di] = gol_tx(dxs[di],expand_dy=expand_dy)
     return dys
 
 # mk all txs from domain
@@ -354,7 +378,7 @@ def mk_px_codomains(px,cap=10,save=True):
         return
     return dxys
 
-# search fro patterns in domain(s)
+# search for patterns in domain(s)
 def is_sx_in_dx(sx,dx,search_borders=False):
     if sx.flatten().shape[0] > dx.flatten().shape[0]:
         return False
@@ -370,14 +394,20 @@ def is_sx_in_dxs(sx,dxs,search_borders=False):
         return is_sx_in_dx(sx,dxs,search_borders=search_borders)
     if search_borders:
         dxs = np.pad(dxs,((0,0),(1,1),(1,1)))
+    ids = np.zeros(dxs.shape[0]).astype(int)
     for wi in range(dxs.shape[1] - sx.shape[0]+1):
         for wj in range(dxs.shape[2] - sx.shape[1]+1):
-            ids = np.zeros(dxs.shape[0])
+            wids = np.zeros(dxs.shape[0])
             wx = dxs[:,wi:wi+sx.shape[0],wj:wj+sx.shape[1]]
-            ids[np.sum(wx*sx,axis=(1,2))==sx.sum()] += 0.5
-            ids[np.sum(wx*mk_moore_nb(sx),axis=(1,2))==0] += 0.5
-            if ids.astype(int).sum() > 0:
-                return True
+            wids[np.sum(wx*sx,axis=(1,2))==sx.sum()] += 0.5
+            wids[np.sum(wx*mk_moore_nb(sx),axis=(1,2))==0] += 0.5
+            ids += wids.astype(int)
+    return ids.nonzero()[0]
+# same, but using object
+def is_px_in_dx(px,dx,search_borders=False):
+    for sx in px.vxs.sx:
+        if is_sx_in_dx(sx,dx,search_borders=search_borders):
+            return True
     return False
 # search px in all domain, no ct restrictions
 # sliding window matching sx (2d) in all dxs (3d)
@@ -400,7 +430,7 @@ def is_px_in_dxs(px,dxs,search_borders=False,vxs_ids=False):
         if vxs_ids:
             ids *= px.vxs[i].id
             return ids
-    return ids.nonzero()[0]
+    return ids
     
 # dx/dy ids for px -> py transition
 # search (py) patterns in codomains (dxys) (i.e., find transitions)
@@ -578,6 +608,48 @@ def plot_pxs(pxs,rows=0,cols=0,horizontal=False,
     plt.tight_layout
     plt.show()
 
+def reconstruct_nonzeros(nzs,grid_size=25):
+    dxs = np.zeros((len(nzs),grid_size,grid_size))
+    for i,nzi in enumerate(nzs):
+        dxs[i][nzi] = 1
+    return dxs
+
+def gol_animplot(iims, rows=0, cols=0, step=100, color='gray'):
+    from matplotlib import animation
+    if not isinstance(iims, list):
+        iims = [iims]
+    nf = iims[0].shape[0]
+    # if only one (make spikes)
+    if len(iims) == 1:
+        cp = iims[0].copy()
+        cp[1:] = iims[0][1:] - iims[0][:-1]
+        iims.append(cp)
+    if rows + cols == 0:
+        rows = 1 if len(iims) <= 2 else 2
+        cols = 2 if len(iims) <= 2 else int(len(iims)/2) + len(iims)%2
+    fig, axs = plt.subplots(rows,cols, figsize=(10,5))
+    ti = 0
+    ims = []
+    fig.suptitle('')
+    for ei,ax in enumerate(axs.flat):
+        # im = ax.imshow(iims[ei][ti], cmap=color, aspect='auto', animated=True)
+        im = ax.imshow(palette[iims[ei][ti].astype(int)])
+        ims.append(im)
+    def update_fig(ti):
+        ti = (ti+1)%nf
+        fig.suptitle(f'{ti+1}/{nf}')
+        for ui,ax in enumerate(axs.flat):
+            iims[ui][ti] = np.where(iims[ui][ti]==-1,3,iims[ui][ti])
+            # ax.imshow(palette[iims.astype(int)])
+            # import pdb; pdb.set_trace()
+            ims[ui].set_array(palette[iims[ui][ti].astype(int)])
+            # ims[ui].set_array(iims[ui][ti])
+        return [im for im in ims]
+    ani = animation.FuncAnimation(fig,update_fig,interval=step,blit=False,repeat=True,cache_frame_data=False)
+    plt.show()
+    plt.close()
+
+
 
 '''save, load, etc'''
 def save_as(file,name, fdir='gol_exps_data',ext='gol_info'):
@@ -679,7 +751,8 @@ boat = GolPattern('boat')
 # these have 2048 variants each
 # ffly = GolPattern('firefly')
 # ufo = GolPattern('ufo')
+glider = append_vxs('glider',gla,glb)
 
-pxs = [blinker,pb0,block,gla,glb,                   # basic
-       ttz,ttt,ttl,zz,bar,baby,flag,kite,worm,      # alife24
-       tub,helix,boat]                              # wivace
+# pxs = [blinker,pb0,block,gla,glb,                   # basic
+#        ttz,ttt,ttl,zz,bar,baby,flag,kite,worm,      # alife24
+#        tub,helix,boat]                              # wivace

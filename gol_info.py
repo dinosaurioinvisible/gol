@@ -21,7 +21,9 @@ agency
 # 4) 
 # mk_tx_map(pxs)
 # 5) 
+# nt: n txs, ids, dx, dy, ek: env category (sum)
 # txmap = load_data(filename='gol_txmap_no_cap')
+# number of txs from each and to each pattern 
 # txs = get_tx_counts(txmap,as_df=False,to_csv=True)
 
 ppxs = [blinker,pb0,block,gla,glb,flag,ttt,ttl,worm,boat]

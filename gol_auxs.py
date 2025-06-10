@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 import os
 import pdb
-from pyemd import emd
-from pyemd import emd_samples
+#from pyemd import emd
+#from pyemd import emd_samples
 
 '''
 mk_gol_pattern
@@ -1121,6 +1121,7 @@ def mk_env_distinctions(sx_dx,sx_dxs,sx_ids,sx_name='',mk_plots=False):
         idx_counts = edx[np.where(idx==1)]
         idx_dist = idx_counts/np.sum(idx_counts)
         # emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)
+        
         emdx = emd_samples(idx_dist,np.ones(idx_dist.shape)/idx_dist.shape)     # same vals
         env_info[key] = [emdx,ncases,env,edx,idx_counts,idx_dist]
     eks = sorted([[key,val[0],val[1]] for key,val in env_info.items()],key=lambda x:x[1],reverse=True)
