@@ -28,6 +28,7 @@ pb0 = GolPattern('pb0')
 block = GolPattern('block')
 gla = GolPattern('gliderA')
 glb = GolPattern('gliderB')
+patterns = [blinker, pb0, block, gla, glb]
 # for alife24
 ttz = GolPattern('tetrisZ')
 ttt = GolPattern('tetrisT')
@@ -38,15 +39,26 @@ baby = GolPattern('baby')
 flag = GolPattern('flag')
 kite = GolPattern('kite')
 worm = GolPattern('worm')
+patterns += [ttz, ttt, ttl, zz, bar, baby, flag, kite, worm]
 # new, after alife24
 tub = GolPattern('tub')
 helix = GolPattern('helix')
 boat = GolPattern('boat')
 pbar = GolPattern('prybar')                       # 128 variants and env=24
+patterns += [tub, helix, boat, pbar]
 # these have 2048 variants each
 ffly = GolPattern('firefly')
 ufo = GolPattern('ufo')
 glider = append_vxs('glider',gla,glb)
+patterns += [ffly, ufo, glider]
+
+pxs = []
+for px in patterns:
+    fname = f'alt_sx={px.label}.csv'
+    if os.path.isfile(fname):
+        px.txs = pd.read_csv(fname)
+        px.txs.rename(columns={'Unnamed 0' : 'pattern'})
+        pxs.append(px)
 
 
-# 2) 
+# 2)

@@ -14,8 +14,9 @@ class GolPattern:
         self.env = mk_moore_nb(self.dx + self.mb)      # environment
         self.id = array2int(self.sx)
         self.mk_rec_variants()
+        self.txs = None
         # spiking 
-        self.txs, self.ons, self.offs, self.ev, self.e = None,None,None,None,0
+        # self.ons, self.offs, self.ev, self.e = None,None,None,0
 
     def mk_rec_variants(self):
         vxs = mk_sx_variants(self.sx)
